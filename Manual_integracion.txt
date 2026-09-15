@@ -1,0 +1,2 @@
+1. http://10.0.0.34:9102/integration
+2. http://10.0.0.34:9102/catalogo-api/pau
