@@ -11,19 +11,19 @@ IF DB_NAME() <> N'DBSSIPE2' THROW 50001, 'Seleccionar DBSSIPE2 DESA.', 1;
 IF CONVERT(nvarchar(128), SERVERPROPERTY('MachineName')) <> N'PVDDEV-BD07' THROW 51001, 'Solo servidor DESA PVDDEV-BD07.', 1;
 
 DECLARE @confirmar      bit = 0;              -- 1 = COMMIT
-DECLARE @SistemaId      int = NULL;           -- id de SSIPE en PAU (SP_SEL_SISTEMAS). Mismo valor que PauIntegration:SistemaId en SSIPE
-DECLARE @PerfilPauId    int = NULL;           -- PER_PK_PERFI de 'COORDINADOR DE OBRA' en PAU para ese sistema
-DECLARE @UsuarioPauId   int = NULL;           -- USU_PK_USUAR del DNI 42910203 en PAU
-DECLARE @DependenciaPauId int = NULL;         -- DEN_PK_DETEN (dependencia) del usuario en PAU
+DECLARE @SistemaId      int = 2020;           -- id de SSIPE en PAU (SP_SEL_SISTEMAS). Mismo valor que PauIntegration:SistemaId en SSIPE
+DECLARE @PerfilPauId    int = 2034;           -- PER_PK_PERFI de 'COORDINADOR DE OBRA' en PAU para ese sistema
+DECLARE @UsuarioPauId   int = 4604;           -- USU_PK_USUAR del DNI 42910203 en PAU
+DECLARE @DependenciaPauId int = 7911;         -- DEN_PK_DETEN (dependencia) del usuario en PAU
 DECLARE @RevisadoPor    nvarchar(100) = N'42910203';
 DECLARE @VigenteHasta   datetime2 = DATEADD(DAY, 90, SYSUTCDATETIME());   -- vigencia de prueba
 /* Modulos PAU (id del nodo del menu que PAU devuelve en permisos.menu[].id para los roles del grupo).
    Deben existir en PAU como modulos del sistema SSIPE y estar en GPR_FK_ROLES del grupo; si PAU aun no tiene modulos
    para SSIPE, crearlos desde el front PAU (Modulos/Roles) usando estos mismos codigos como referencia. */
-DECLARE @Mod_M0001 nvarchar(100) = NULL;   -- Seguimiento (/seguimiento)
-DECLARE @Mod_M0007 nvarchar(100) = NULL;   -- Proyecto (/intervencion)
-DECLARE @Mod_M0043 nvarchar(100) = NULL;   -- Convenio (/convenio)
-DECLARE @Mod_M1051 nvarchar(100) = NULL;   -- Asignar Proyecto (/asignarProyecto)
+DECLARE @Mod_M0001 nvarchar(100) = N'2182';   -- Seguimiento (/seguimiento)
+DECLARE @Mod_M0007 nvarchar(100) = N'2183';   -- Proyecto (/intervencion)
+DECLARE @Mod_M0043 nvarchar(100) = N'2184';   -- Convenio (/convenio)
+DECLARE @Mod_M1051 nvarchar(100) = N'2185';   -- Asignar Proyecto (/asignarProyecto)
 
 IF @SistemaId IS NULL OR @PerfilPauId IS NULL OR @UsuarioPauId IS NULL OR @DependenciaPauId IS NULL
     THROW 50002, 'Completar @SistemaId, @PerfilPauId, @UsuarioPauId y @DependenciaPauId con los ids del PAU.', 1;
