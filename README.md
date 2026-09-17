@@ -25,6 +25,9 @@ Ambientes autorizados: DBSSIPE2 en `PVDDEV-BD07\ARTEMISA36`, DBSSO de desarrollo
 | 8b | `14_inventario_PAU_PVDPAU_PROD.sql` | PVDPAU_PROD (PAU DESA, Artemisa20) | Solo lectura: id de SSIPE en PAU, usuario 42910203, perfiles existentes, tablas reales |
 | 8c | `15_alta_perfil_coordinador_obra_PAU_PVDPAU_PROD.sql` | PVDPAU_PROD | Crea perfil COORDINADOR DE OBRA + grupo + asignación del usuario de prueba vía SP del PAU (o hacerlo desde el front PAU) |
 | 8d | `17_homologacion_usuario_prueba_P0025_DBSSIPE2.sql` | DBSSIPE2 | Carga de homologación del usuario de prueba con P0025 (generado desde el export SSO; completar ids PAU) |
+| 8e | `18_alta_masiva_perfiles_SSIPE_en_PAU_PVDPAU_PROD.sql` | PVDPAU_PROD | Alta masiva de perfiles SSIPE en PAU (perfil + rol + módulos + grupo). Marcar `Activar=1` solo en los aprobados; devuelve los `PerfilPauId` |
+| 8f | `18b_asignaciones_usuarios_PAU_PVDPAU_PROD.sql` (en `integracion/evidencias/privado/`, **no en git**: contiene DNIs) | PVDPAU_PROD | Asigna usuarios reales a los perfiles creados, cruzando por documento; reporta los que no existen en PAU |
+| 8g | `19_homologacion_masiva_perfiles_DBSSIPE2.sql` | DBSSIPE2 | PauPerfil + PauMenu + PauOperacion para todos los perfiles (39 menús, 710 claims). Completar `@map` con los ids del 18 |
 | 9 | `13_precheck_cutover_asignar_proyecto_DBSSIPE2.sql` | DBSSIPE2 | Decide si existe cobertura suficiente para cortar SSO |
 | 10 | `13_cutover_asignar_proyecto_PAU_DBSSIPE2.sql` | DBSSIPE2 | Sustituye las vistas SSO únicamente si pasan las guardas |
 | R | `13_rollback_asignar_proyecto_SSO_DBSSIPE2.sql` | DBSSIPE2 | Restaura temporalmente las vistas SSO |
