@@ -72,6 +72,16 @@ adelante, usar en su lugar estos dos archivos (no crear un script nuevo por lote
 Este estándar no reemplaza los pasos 0-7 (infraestructura de tablas/SP, se corren una sola vez) ni el
 18/19 (alta de un perfil SSIPE nuevo en PAU, se corre una sola vez por perfil, no por usuario).
 
+## Cambiar a que ambiente redirige el botón de SSIPE en el PAU
+
+`26_apuntar_sistema_ssipe_ambiente_PVDPAU_PROD.sql` (PVDPAU_PROD) cambia únicamente
+`I_SISTEMA_SIS.SIS_V_LINKSI` del sistema 2020 entre el front local (`http://localhost:4200/pau/callback`)
+y el desplegado, para poder probar el front de SSIPE en `localhost:4200` desde el botón real del PAU.
+Es un switch **global y compartido** (afecta a cualquiera que entre a SSIPE desde el PAU de DESA mientras
+esté en LOCAL) — volver a `DESPLIEGUE` al terminar de probar. Ver el encabezado del script para el
+requisito adicional en el back (`PauIntegration.IntegrationUrl`/`UserApiUrl` deben apuntar al mismo PAU
+que emitió el `unique_code`).
+
 ## Archivos retirados
 
 - `02` y `04`: versiones reemplazadas del resolvedor.
