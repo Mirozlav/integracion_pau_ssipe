@@ -69,7 +69,11 @@ DECLARE @nuevaUrl varchar(255) =
 IF @nuevaUrl IS NULL THROW 50003, '@destino debe ser LOCAL, DESPLIEGUE o PERSONALIZADO (con @urlPersonalizada).', 1;
 
 DECLARE @actual varchar(255) = (SELECT SIS_V_LINKSI FROM I_SISTEMA_SIS WHERE SIS_PK_SISTEM = @sistemaId);
-IF @actual IS NULL THROW 50004, CONCAT('No existe el sistema ', @sistemaId, ' en I_SISTEMA_SIS.'), 1;
+IF @actual IS NULL
+BEGIN
+    DECLARE @msgNoExiste varchar(255) = CONCAT('No existe el sistema ', @sistemaId, ' en I_SISTEMA_SIS.');
+    THROW 50004, @msgNoExiste, 1;
+END
 
 PRINT CONCAT('SIS_V_LINKSI actual: ', @actual, '  (copialo si despues quieres volver a este valor exacto con PERSONALIZADO)');
 PRINT CONCAT('SIS_V_LINKSI destino (', @destino, '): ', @nuevaUrl);
