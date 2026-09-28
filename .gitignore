@@ -1,3 +1,4 @@
 evidencias/
 *.local.*
 appsettings*.json
+__pycache__/

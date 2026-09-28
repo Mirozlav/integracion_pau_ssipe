@@ -13,13 +13,45 @@ Revalidado contra **DBSSIPE3** el 28/09/2026: `P00` sale `ListoParaPase=1`. Esto
 
 ## Requisitos del lado PAU (equipo PAU, en el PAU del ambiente)
 
-1. SSIPE registrado como sistema (como el script 15 en DESA), con `SIS_V_LINKSI = <URL del front SSIPE del ambiente>/pau/callback`.
-2. Módulos M0001 Seguimiento, M0007 Proyecto, M0043 Convenio y M1051 Asignar Proyecto.
-3. Perfiles/roles/grupos SSIPE (script 18 adaptado al ambiente).
+`P03_sistema_modulos_perfiles_SSIPE_en_PAU.sql` (28/09) deja todo en un solo script portable, que reemplaza a los scripts 15 y 18:
 
-De ahí salen tres datos para `P02`: `SistemaId`, los `PerfilPauId` y los `ModuloPauId`.
+1. Registra SSIPE como sistema, con `SIS_V_LINKSI = <URL del front SSIPE del ambiente>/pau/callback`.
+2. Crea los módulos M0001 Seguimiento, M0007 Proyecto, M0043 Convenio y M1051 Asignar Proyecto.
+3. Crea los perfiles, roles y grupos P0001, P0023, P0024, P0025, **P0028 ESPECIALISTA DE EXPEDIENTE**, **P0029 ESPECIALISTA PREINVERSION** y **P0045 LECTOR GENERAL** para QA/PROD.
 
-## Orden en la base SSIPE del ambiente
+Su salida entrega los datos que necesita la parte 2: `SistemaId`, los siete `PerfilPauId` y los `ModuloPauId`. En DESA ya se aplicó el alcance anterior: solo creó P0045 (`PerfilPauId` 2053). P0028/P0029 se incorporan en QA/PROD; no reejecutar P03 en DESA para crearlos sin aprobación del ambiente.
+
+### Perfil P0045 LECTOR GENERAL ("Seguimiento" en la lista de usuarios)
+
+Es el perfil de solo lectura. Reutiliza el código y el `IdPerfil` 1051 del P0045 del SSO, así que queda homologado sin tocar DBSSO.
+
+- **Menús:** M0001, M0007 y M0043. No tiene M1051, porque Asignar Proyecto es un módulo de escritura.
+- **Qué ve:** los listados no lo restringen a proyectos asignados (solo P0023, P0028 y P0029 tienen esa restricción), así que ve toda la data.
+- **Claims en SSIPE: ninguno.** En el front, los `btn_acciones_*` (clasificados como "leer") muestran Editar y Eliminar, por eso no se le asignan.
+- **En PAU:** solo tiene el flag PRISEL. Aunque se le agregara un claim de escritura por error, la sesión lo filtraría.
+- **Límite:** el back no bloquea los endpoints de escritura por perfil. La solo lectura se garantiza en el front y en el token.
+
+## Scripts consolidados (recomendado para QA/PROD)
+
+`herramientas/armar_integracion_pau_ssipe.py` los genera a partir de los fuentes; no se editan a mano. Todos siguen las mismas reglas:
+- corren en modo SQLCMD y cortan ante el primer error;
+- van en una transacción exterior: `CONFIRMAR "0"` simula todo y `"1"` aplica;
+- tienen una sola guarda de base: `BASE_SSIPE`.
+
+| Script | Contiene | Cuándo |
+|---|---|---|
+| `integracion_pau_ssipe_1_estructura.sql` | P01 + 27 + 28 + 25 | Antes de `DESPLIEGUE_1_DBSSIPE.sql`, que lo requiere. No cambia el comportamiento del back anterior. |
+| `integracion_pau_ssipe_2_perfiles_y_corte.sql` | P02 + 30 + 29 | Después de `DESPLIEGUE_1` (y PATS), en la ventana del back/front. Los ids del PAU (salida de P03) van en su bloque `:setvar`. |
+| `integracion_pau_ssipe_R_rollback_corte.sql` | 29R | Solo para volver al SSO. |
+
+**Ensayo del 28/09 en DBSSIPE3**, en una sola conexión y transacción revertida:
+- Se corrió la cadena parte 1 → `DESPLIEGUE_1` → `despliegue_pats` → parte 2 (con ids de DESA) → carga masiva de 22 proyectos, sin errores.
+- Sesión P0045: M0001, M0007 y M0043, con 0 claims.
+- Listados: P0045 ve toda la data; P0023 sin asignaciones, vacío. El coordinador ve candidatos en Asignar Proyecto.
+- Quedaron 0 objetos leyendo identidad del SSO.
+- Tras revertir, DBSSIPE3 quedó sin `integracion`, sin PATS, sin `IdSector` y con 0 transacciones.
+
+## Orden en la base SSIPE del ambiente (scripts sueltos, equivalente a los consolidados)
 
 En cada script, reemplazar el nombre de base de la cabecera (`<<<`) por el de la base SSIPE del ambiente. Todos arrancan en modo simulación o solo lectura donde aplica.
 
@@ -49,7 +81,8 @@ En cada script, reemplazar el nombre de base de la cabecera (`<<<`) por el de la
   - Los guards solo aceptan sesión PAU.
   - `config.json` del ambiente: `apiUrl` y `pauPortalUrl` de ese ambiente. **Ojo:** en `dev_pau` quedó commiteado con `localhost` (commit `331cfbad`).
 
-## Pendiente funcional (no bloquea el pase de Obra)
+## Consideraciones operativas (no bloquean el pase)
 
-- P0028 (Especialista de Expediente) y P0029 (Especialista Preinversión) aún no están homologados en PAU. Mientras no se creen con 18/P02, Asignar Proyecto no lista candidatos de esas fases.
+- P0028 (Especialista de Expediente) y P0029 (Especialista Preinversión) quedan incluidos en PAU y en la homologación SSIPE para QA/PROD. En cada ambiente se debe ejecutar P03, capturar los `PerfilPauId` generados y colocarlos en `PAU_PERFIL_P0028` y `PAU_PERFIL_P0029` antes de ejecutar la parte 2. El lote vigente de 51 usuarios no contiene especialistas de estas fases; cuando se definan sus DNI, se agregan a PAU_03/PAU_05 sin cambiar la estructura del pase.
 - Los usuarios existentes aparecen en Asignar Proyecto cuando se homologan con el 25 v2 o cuando ingresan por PAU. En DESA, 3 de los 4 usuarios homologados antes de este cambio siguen sin fila en el directorio.
+- **Vigencia de la homologación:** el 25 usa 90 días por defecto y el login no la renueva. Para los lotes de producción, el generador pasa `--vigente-dias 365`. Vencida la vigencia, o si PAU cambia la dependencia del usuario (contrato nuevo), el login responde `HOMOLOGACION_PENDIENTE` y hay que volver a correr el lote.

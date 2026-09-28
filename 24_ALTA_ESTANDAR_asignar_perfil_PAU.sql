@@ -20,8 +20,9 @@
 
  CODIGOS DE PERFIL SSIPE VALIDOS HOY EN PAU (ver 19_homologacion_masiva_perfiles_DBSSIPE2.sql):
    P0001 ADMINISTRADOR, P0023 ADMINISTRADOR DE CONTRATO DE OBRA,
-   P0024 SUPERVISOR DE OBRA, P0025 COORDINADOR DE OBRA.
-   Cualquier otro CodigoSSO (P0021, P0022, P0027..P0046) todavia no esta
+   P0024 SUPERVISOR DE OBRA, P0025 COORDINADOR DE OBRA,
+   P0045 LECTOR GENERAL ("Seguimiento": solo lectura, ver PASE_QA_PROD/P03).
+   Cualquier otro CodigoSSO (P0021, P0022, P0027..P0044, P0046) todavia no esta
    homologado/activo en PAU ni en DBSSIPE2: si el lote nuevo trae uno de esos,
    detenerse y primero completar el 18_alta_masiva_perfiles_SSIPE_en_PAU_PVDPAU_PROD.sql
    + 19_homologacion_masiva_perfiles_DBSSIPE2.sql para ese perfil.

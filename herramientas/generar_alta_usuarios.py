@@ -14,7 +14,11 @@ Los scripts generados contienen DNIs: guardarlos fuera de git (por ejemplo docs/
 
 Uso:
   python generar_alta_usuarios.py usuarios.xlsx --salida <carpeta> --revisado-por <DNI de quien homologa>
-      [--ambiente DESA|PROD] [--pau-db X --ssipe-db Y --sistema-id N] [--id-area-defecto N] [--lote nombre]
+      [--ambiente DESA|PROD] [--pau-db X --ssipe-db Y --sistema-id N] [--id-area-defecto N]
+      [--vigente-dias N] [--lote nombre]
+
+En PROD, si aun no se conocen la base PAU o el SistemaId (los entrega el equipo PAU tras correr P03),
+los scripts salen con marcadores <<<...>>> que detienen la ejecucion hasta completarlos a mano.
 """
 import argparse
 import datetime as dt
@@ -30,7 +34,7 @@ PLANTILLA_PAU = AQUI.parent / "24_ALTA_ESTANDAR_asignar_perfil_PAU.sql"
 
 AMBIENTES = {
     "DESA": {"pau_db": "PVDPAU_PROD", "ssipe_db": "DBSSIPE2", "sistema_id": 2020},
-    "PROD": {"pau_db": None, "ssipe_db": None, "sistema_id": None},
+    "PROD": {"pau_db": "<<<BASE_PAU_PROD>>>", "ssipe_db": "DBSSIPE", "sistema_id": None},
 }
 
 # Nombre de perfil (como lo escribe el area usuaria) -> CodigoSSO homologado en PauPerfil
@@ -41,6 +45,7 @@ PERFILES = {
     "ADMINISTRADOR DE CONTRATO": "P0023",
     "ADMINISTRADOR DE CONTRATO DE OBRA": "P0023",
     "SUPERVISOR DE OBRA": "P0024",
+    "COORDINADOR": "P0025",
     "COORDINADOR DE OBRA": "P0025",
     "COORDINADOR EXPEDIENTE": "P0027",
     "COORDINADOR DE EXPEDIENTE": "P0027",
@@ -52,6 +57,7 @@ PERFILES = {
     "RESPONSABLE EJECUCION": "P0043",
     "COORDINADOR PATS": "P0044",
     "LECTOR GENERAL": "P0045",
+    "SEGUIMIENTO": "P0045",          # perfil de solo lectura (PASE_QA_PROD/P03)
     "RESPONSABLE ABASTECIMIENTO": "P0046",
 }
 
@@ -105,12 +111,23 @@ def script_pau(usuarios, amb):
               f"INSERT @asig VALUES\n{filas};\n")
     texto = texto[:ini] + bloque + texto[fin:]
     texto = texto.replace("IF DB_NAME() <> N'PVDPAU_PROD'", f"IF DB_NAME() <> N'{amb['pau_db']}'", 1)
-    texto = re.sub(r"DECLARE @sis int = \d+;", f"DECLARE @sis int = {amb['sistema_id']};", texto, count=1)
+    if amb["sistema_id"] is None:
+        decl = ("DECLARE @sis int = NULL;          -- <<< SistemaId de SSIPE en el PAU del ambiente (salida 'sistema' de P03)\n"
+                "IF @sis IS NULL THROW 50002, 'Completar @sis con el SistemaId de SSIPE en este PAU.', 1;")
+    else:
+        decl = f"DECLARE @sis int = {amb['sistema_id']};"
+    texto = re.sub(r"DECLARE @sis int = \d+;[^\n]*", lambda _: decl, texto, count=1)
     return texto
 
 
-def script_ssipe(usuarios, amb, revisado_por, id_area):
+def script_ssipe(usuarios, amb, revisado_por, id_area, vigente_dias):
     docs = ", ".join(sql(d) for d, _, _ in usuarios)
+    if amb["sistema_id"] is None:
+        sis = ("DECLARE @sis int = NULL;   -- <<< SistemaId de SSIPE en el PAU del ambiente (salida 'sistema' de P03)\n"
+               "IF @sis IS NULL THROW 58002, 'Completar @sis con el SistemaId de SSIPE en el PAU.', 1;\n")
+    else:
+        sis = f"DECLARE @sis int = {amb['sistema_id']};\n"
+    vigencia = "" if vigente_dias is None else f"    @vigenteDias = {vigente_dias},\n"
     area = "NULL   -- <<< IdArea SSIPE para usuarios nuevos (ver EXEC integracion.paListarArea)" if id_area is None else str(id_area)
     return f"""/* Alta estandar PAU -> SSIPE, FASE 2: homologar en la base SSIPE ({len(usuarios)} usuarios).
    1) Correr antes el _1_PAU.sql de este lote con @confirmar = 1.
@@ -120,15 +137,15 @@ IF DB_NAME() <> N'{amb['ssipe_db']}' OR OBJECT_ID(N'integracion.paHomologarUsuar
 BEGIN RAISERROR(N'Base incorrecta o falta integracion.paHomologarUsuariosPau (script 25): ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
 GO
 DECLARE @confirmar bit = 0;
-DECLARE @json nvarchar(max) = N'<<< PEGAR AQUI JsonParaScript25 >>>';
+{sis}DECLARE @json nvarchar(max) = N'<<< PEGAR AQUI JsonParaScript25 >>>';
 IF ISJSON(@json) <> 1 THROW 58001, 'Pegar en @json el JsonParaScript25 del script PAU del lote.', 1;
 
 EXEC integracion.paHomologarUsuariosPau
     @usuariosJson = @json,
-    @sistemaId = {amb['sistema_id']},
+    @sistemaId = @sis,
     @revisadoPor = {sql(revisado_por)},
     @idAreaPorDefecto = {area},
-    @confirmar = @confirmar;
+{vigencia}    @confirmar = @confirmar;
 
 SELECT Verificacion = 'Candidatos visibles en Asignar Proyecto / sesion', IdUsuario, Documento, CodigoPerfil, NombrePerfil, Area
 FROM integracion.vw_UsuarioSsipe WHERE Documento IN ({docs});
@@ -148,6 +165,7 @@ def main():
     ap.add_argument("--ssipe-db")
     ap.add_argument("--sistema-id", type=int)
     ap.add_argument("--id-area-defecto", type=int)
+    ap.add_argument("--vigente-dias", type=int, help="vigencia de la homologacion en dias (el SP usa 90 si se omite)")
     ap.add_argument("--lote", default=dt.date.today().isoformat())
     a = ap.parse_args()
 
@@ -156,7 +174,7 @@ def main():
         valor = getattr(a, clave)
         if valor is not None:
             amb[clave] = valor
-        if amb[clave] is None:
+        if amb[clave] is None and clave != "sistema_id":
             sys.exit(f"Ambiente {a.ambiente}: indicar --{clave.replace('_', '-')}")
 
     usuarios = leer_excel(a.excel)
@@ -164,7 +182,7 @@ def main():
     salida.mkdir(parents=True, exist_ok=True)
     base = f"{a.lote}_{a.ambiente}"
     (salida / f"{base}_1_PAU.sql").write_text(script_pau(usuarios, amb), encoding="utf-8")
-    (salida / f"{base}_2_SSIPE.sql").write_text(script_ssipe(usuarios, amb, a.revisado_por, a.id_area_defecto), encoding="utf-8")
+    (salida / f"{base}_2_SSIPE.sql").write_text(script_ssipe(usuarios, amb, a.revisado_por, a.id_area_defecto, a.vigente_dias), encoding="utf-8")
     print(f"{len(usuarios)} usuarios -> {salida / (base + '_1_PAU.sql')} y {salida / (base + '_2_SSIPE.sql')}")
     for d, n, c in usuarios:
         print(f"  {c}  {n}")

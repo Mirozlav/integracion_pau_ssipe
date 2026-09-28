@@ -1,5 +1,63 @@
 /*
 ================================================================================
+ integracion_pau_ssipe_2_perfiles_y_corte.sql
+================================================================================
+ PASE PAU -> SSIPE, PARTE 2 de 2 (perfiles y corte). Base SSIPE del ambiente.
+   P02 perfiles/menus/claims SSIPE con los ids del PAU del ambiente
+       (P0001, P0023, P0024, P0025, P0028, P0029 y P0045 LECTOR GENERAL = "Seguimiento", solo lectura)
+   30  11 claims de Ejecucion CVA (reemplaza el bloque 2 de DESPLIEGUE_2_DBSSO)
+   29  corte de identidad: Asignar Proyecto y filtros de listados leen PAU
+ Requiere: parte 1 y DESPLIEGUE_1_DBSSIPE.sql aplicados, y los ids que entrega el
+ equipo PAU al correr P03_sistema_modulos_perfiles_SSIPE_en_PAU.sql en el PAU.
+ Ejecutar en la MISMA ventana en que se publican back y front (rama dev_pau).
+ Rollback: integracion_pau_ssipe_R_rollback_corte.sql + PauIntegration:Enabled=false.
+
+ COMO SE EJECUTA
+   - Modo SQLCMD obligatorio (SSMS: menu Consulta > Modo SQLCMD; o sqlcmd -b -I).
+     Sin SQLCMD no ejecuta nada.
+   - Conectado a la base SSIPE del ambiente, con una cuenta con permisos DDL.
+   - Primero con CONFIRMAR "0" (simula todo y hace ROLLBACK). Revisar la salida.
+     Luego CONFIRMAR "1" en una conexion nueva.
+   - Corta ante el primer error; si corta, la transaccion se revierte completa.
+ GENERADO por herramientas/armar_integracion_pau_ssipe.py: no editar a mano,
+ salvo el bloque :setvar de abajo.
+================================================================================
+*/
+:on error exit
+:setvar __MODO_SQLCMD "SI"         -- no tocar
+:setvar BASE_SSIPE "DBSSIPE"       -- base SSIPE del ambiente
+:setvar CONFIRMAR "0"              -- 0 = simular, 1 = aplicar
+:setvar PAU_SISTEMA_ID "NULL"      -- P03 'sistema': SistemaId (= PauIntegration:SistemaId)
+:setvar PAU_PERFIL_P0001 "NULL"    -- P03 'resultado': PerfilPauId de P0001
+:setvar PAU_PERFIL_P0023 "NULL"    -- P03 'resultado': PerfilPauId de P0023
+:setvar PAU_PERFIL_P0024 "NULL"    -- P03 'resultado': PerfilPauId de P0024
+:setvar PAU_PERFIL_P0025 "NULL"    -- P03 'resultado': PerfilPauId de P0025
+:setvar PAU_PERFIL_P0028 "NULL"    -- P03 'resultado': PerfilPauId de P0028
+:setvar PAU_PERFIL_P0029 "NULL"    -- P03 'resultado': PerfilPauId de P0029
+:setvar PAU_PERFIL_P0045 "NULL"    -- P03 'resultado': PerfilPauId de P0045
+:setvar PAU_MODULO_M0001 "NULL"    -- P03 'modulos': ModuloPauId de M0001
+:setvar PAU_MODULO_M0007 "NULL"    -- P03 'modulos': ModuloPauId de M0007
+:setvar PAU_MODULO_M0043 "NULL"    -- P03 'modulos': ModuloPauId de M0043
+:setvar PAU_MODULO_M1051 "NULL"    -- P03 'modulos': ModuloPauId de M1051
+GO
+IF N'$(__MODO_SQLCMD)' <> N'SI'
+BEGIN RAISERROR(N'Ejecutar en modo SQLCMD (SSMS: Consulta > Modo SQLCMD). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
+GO
+IF DB_NAME() <> N'$(BASE_SSIPE)' OR N'$(CONFIRMAR)' NOT IN (N'0', N'1')
+BEGIN RAISERROR(N'Base distinta de BASE_SSIPE o CONFIRMAR distinto de 0/1: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF TRY_CONVERT(int, N'$(PAU_SISTEMA_ID)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0001)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0023)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0024)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0025)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0028)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0029)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0045)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0001)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0007)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0043)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M1051)') IS NULL
+BEGIN RAISERROR(N'Completar en :setvar los ids del PAU del ambiente (salida de P03). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+PRINT CONCAT(N'Inicio en ', @@SERVERNAME, N'.', DB_NAME(), N' | CONFIRMAR=$(CONFIRMAR) | ', CONVERT(varchar(19), SYSDATETIME(), 120));
+GO
+-- ############################################################################
+-- FUENTE: PASE_QA_PROD/P02_homologacion_perfiles_QA_PROD.sql
+-- ############################################################################
+/*
+================================================================================
  P02 - Homologacion de perfiles SSIPE (PauPerfil + PauMenu + PauOperacion) para QA/PROD
 ================================================================================
  QUE ES
@@ -20,32 +78,32 @@
    Base SSIPE del ambiente, despues de P01. No toca PauUsuario (eso es el 24/25).
 ================================================================================
 */
-IF DB_NAME() <> N'DBSSIPE'   -- <<< nombre de la base SSIPE del ambiente (QA/PROD)
+IF DB_NAME() <> N'$(BASE_SSIPE)'
    OR OBJECT_ID(N'integracion.PauOperacion', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta P01: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
 GO
 SET NOCOUNT ON; SET XACT_ABORT ON;
 
-DECLARE @confirmar bit = 0;
-DECLARE @SistemaId int = NULL;   -- <<< SistemaId de SSIPE en el PAU del ambiente (= PauIntegration:SistemaId del back)
+DECLARE @confirmar bit = 1;   -- consolidado: lo decide la transaccion exterior (CONFIRMAR)
+DECLARE @SistemaId int = $(PAU_SISTEMA_ID);   -- <<< SistemaId de SSIPE en el PAU del ambiente (= PauIntegration:SistemaId del back)
 IF @SistemaId IS NULL THROW 57001, 'Completar @SistemaId con el id de SSIPE en el PAU del ambiente.', 1;
 
 DECLARE @map TABLE (CodigoSSO varchar(10), PerfilPauId int NULL, IdPerfilSSO int, NombrePerfil nvarchar(200));
 INSERT @map (CodigoSSO, PerfilPauId, IdPerfilSSO, NombrePerfil) VALUES
- ('P0001', NULL, 1, N'ADMINISTRADOR'),
+ ('P0001', $(PAU_PERFIL_P0001), 1, N'ADMINISTRADOR'),
  ('P0021', NULL, 28, N'GERENTE DE OBRA'),
  ('P0022', NULL, 29, N'JEFE DE OBRA'),
- ('P0023', NULL, 30, N'ADMINISTRADOR DE CONTRATO DE OBRA'),
- ('P0024', NULL, 31, N'SUPERVISOR DE OBRA'),
- ('P0025', NULL, 32, N'COORDINADOR DE OBRA'),
+ ('P0023', $(PAU_PERFIL_P0023), 30, N'ADMINISTRADOR DE CONTRATO DE OBRA'),
+ ('P0024', $(PAU_PERFIL_P0024), 31, N'SUPERVISOR DE OBRA'),
+ ('P0025', $(PAU_PERFIL_P0025), 32, N'COORDINADOR DE OBRA'),
  ('P0027', NULL, 34, N'COORDINADOR EXPEDIENTE'),
- ('P0028', NULL, 35, N'ESPECIALISTA DE EXPEDIENTE'),
- ('P0029', NULL, 36, N'ESPECIALISTA PREINVERSION'),
+ ('P0028', $(PAU_PERFIL_P0028), 35, N'ESPECIALISTA DE EXPEDIENTE'),
+ ('P0029', $(PAU_PERFIL_P0029), 36, N'ESPECIALISTA PREINVERSION'),
  ('P0041', NULL, 1047, N'RESPONSABLE EXPEDIENTE TECNICO'),
  ('P0042', NULL, 1048, N'RESPONSABLE PACRI'),
  ('P0043', NULL, 1049, N'RESPONSABLE EJECUCION'),
  ('P0044', NULL, 1050, N'COORDINADOR PATS'),
- ('P0045', NULL, 1051, N'LECTOR GENERAL'),
+ ('P0045', $(PAU_PERFIL_P0045), 1051, N'LECTOR GENERAL'),
  ('P0046', NULL, 1052, N'RESPONSABLE ABASTECIMIENTO');   -- <<< reemplazar NULL por el PerfilPauId del script 18
 
 DECLARE @menu TABLE (CodigoSSO varchar(10), CodigoMenu varchar(10), ModuloPauId nvarchar(100), NombreMenu nvarchar(200), Url nvarchar(300), Icono nvarchar(100), Orden int);
@@ -808,10 +866,10 @@ INSERT @op VALUES
 
 DECLARE @modulo TABLE (ModuloDesa nvarchar(100), CodigoMenu varchar(10), ModuloPauId nvarchar(100) NULL);
 INSERT @modulo VALUES
- (N'2182', 'M0001', NULL),   -- Seguimiento       <<< MOD_PK_MODUL del ambiente
- (N'2183', 'M0007', NULL),   -- Proyecto          <<< MOD_PK_MODUL del ambiente
- (N'2184', 'M0043', NULL),   -- Convenio          <<< MOD_PK_MODUL del ambiente
- (N'2185', 'M1051', NULL);   -- Asignar Proyecto  <<< MOD_PK_MODUL del ambiente
+ (N'2182', 'M0001', N'$(PAU_MODULO_M0001)'),   -- Seguimiento       <<< MOD_PK_MODUL del ambiente
+ (N'2183', 'M0007', N'$(PAU_MODULO_M0007)'),   -- Proyecto          <<< MOD_PK_MODUL del ambiente
+ (N'2184', 'M0043', N'$(PAU_MODULO_M0043)'),   -- Convenio          <<< MOD_PK_MODUL del ambiente
+ (N'2185', 'M1051', N'$(PAU_MODULO_M1051)');   -- Asignar Proyecto  <<< MOD_PK_MODUL del ambiente
 IF EXISTS (SELECT 1 FROM @modulo WHERE ModuloPauId IS NULL)
     THROW 57002, 'Completar @modulo con los ModuloPauId (MOD_PK_MODUL) de SSIPE en el PAU del ambiente.', 1;
 IF NOT EXISTS (SELECT 1 FROM @map WHERE PerfilPauId IS NOT NULL)
@@ -849,8 +907,341 @@ SELECT 'resumen' AS q, p.CodigoPerfil, p.PerfilPauId, p.NombrePerfil,
        (SELECT COUNT(*) FROM integracion.PauOperacion x WHERE x.SistemaId = p.SistemaId AND x.PerfilPauId = p.PerfilPauId AND x.Activo = 1) Claims
 FROM integracion.PauPerfil p WHERE p.SistemaId = @SistemaId ORDER BY p.CodigoPerfil;
 
-IF @confirmar = 1 BEGIN COMMIT; PRINT 'COMMIT realizado.'; END
+IF @confirmar = 1 BEGIN COMMIT; PRINT 'Bloque OK (se confirma o revierte al final segun CONFIRMAR).'; END
 ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Poner @confirmar = 1 para aplicar.'; END
+GO
+GO
+GO
+-- ############################################################################
+-- FUENTE: 30_claims_ejecucion_cva_PAU.sql
+-- ############################################################################
+/*
+================================================================================
+ 30 - Claims de las pestanas de Seguimiento de Ejecucion CVA, version PAU
+================================================================================
+ QUE ES
+   Reemplaza al BLOQUE 2 de DESPLIEGUE/DESPLIEGUE_2_DBSSO.sql. Aquel daba de
+   alta 11 operaciones en DBSSO (login.Operacion / DetallePerfilOperacion) para
+   P0023, P0024 y P0025. Con SSIPE entrando solo por PAU, los claims que llegan
+   al token salen de integracion.PauOperacion (ver paResolverSesionPau), asi
+   que el SSO ya no se toca: los mismos 11 claims y la misma matriz por perfil
+   se registran aqui.
+
+     #  HasClaim (SSIPE + M0001 + NombreOperacion)        P0025 P0023 P0024  Accion PAU
+     1  SSIPEM0001_ejecucion_btn_vincular_proceso           x     x           crear
+     2  SSIPEM0001_ejecucion_btn_nuevo_conservacion         x     x     x     crear
+     3  SSIPEM0001_ejecucion_btn_acciones_conservacion      x     x     x     leer
+     4  SSIPEM0001_ejecucion_btn_nuevo_mejoramiento         x     x     x     crear
+     5  SSIPEM0001_ejecucion_btn_acciones_mejoramiento      x     x     x     leer
+     6  SSIPEM0001_ejecucion_btn_nuevo_socioambiental       x     x           crear
+     7  SSIPEM0001_ejecucion_btn_acciones_socioambiental    x     x           leer
+     8  SSIPEM0001_ejecucion_btn_nuevo_liquidacion          x     x           crear
+     9  SSIPEM0001_ejecucion_btn_acciones_liquidacion       x     x           leer
+    10  SSIPEM0001_ejecucion_btn_nuevo_panelfotografico     x     x     x     crear
+    11  SSIPEM0001_ejecucion_btn_acciones_panelfotografico  x     x     x     leer
+   (Accion = misma clasificacion con la que ya estan cargados en DESA.)
+
+   En DESA ya existen todos (vinieron en el 19, exportado del SSO de DESA donde
+   se habian aplicado): el script no hace nada. En QA/PROD garantiza que
+   existan aunque el SSO de ese ambiente nunca los haya tenido.
+
+   Todo se resuelve por codigo (CodigoPerfil, CodigoMenu M0001), nunca por Id,
+   porque PerfilPauId / ModuloPauId cambian entre ambientes. ADITIVO e
+   idempotente: inserta los que faltan y reactiva los inactivos; no toca otros.
+
+ PRERREQUISITO
+   Perfiles P0023/P0024/P0025 homologados en integracion.PauPerfil con su menu
+   M0001 en integracion.PauMenu (scripts 18/19 o PASE_QA_PROD/P02).
+
+ ATENCION - ARRANCA EN MODO SIMULACION (@confirmar = 0 -> ROLLBACK)
+   Los usuarios ven los claims nuevos al volver a ingresar desde el PAU.
+================================================================================
+*/
+IF DB_NAME() <> N'$(BASE_SSIPE)'
+   OR OBJECT_ID(N'integracion.PauOperacion', N'U') IS NULL
+BEGIN RAISERROR(N'Base incorrecta o falta la infraestructura de integracion: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+SET NOCOUNT ON; SET XACT_ABORT ON;
+
+DECLARE @confirmar bit = 1;   -- consolidado: lo decide la transaccion exterior (CONFIRMAR)
+
+-- SistemaId de SSIPE en el PAU del ambiente: se toma de la homologacion (debe haber uno solo).
+DECLARE @SistemaId int = (SELECT MIN(SistemaId) FROM integracion.PauPerfil WHERE Activo = 1);
+IF @SistemaId IS NULL OR EXISTS (SELECT 1 FROM integracion.PauPerfil WHERE Activo = 1 AND SistemaId <> @SistemaId)
+    THROW 56001, 'integracion.PauPerfil vacio o con mas de un SistemaId: revisar la homologacion.', 1;
+
+DECLARE @claims TABLE (Orden int, HasClaim varchar(200), Accion varchar(10), P0025 bit, P0023 bit, P0024 bit);
+INSERT @claims VALUES
+ ( 1, 'SSIPEM0001_ejecucion_btn_vincular_proceso',          'crear', 1, 1, 0),
+ ( 2, 'SSIPEM0001_ejecucion_btn_nuevo_conservacion',        'crear', 1, 1, 1),
+ ( 3, 'SSIPEM0001_ejecucion_btn_acciones_conservacion',     'leer',  1, 1, 1),
+ ( 4, 'SSIPEM0001_ejecucion_btn_nuevo_mejoramiento',        'crear', 1, 1, 1),
+ ( 5, 'SSIPEM0001_ejecucion_btn_acciones_mejoramiento',     'leer',  1, 1, 1),
+ ( 6, 'SSIPEM0001_ejecucion_btn_nuevo_socioambiental',      'crear', 1, 1, 0),
+ ( 7, 'SSIPEM0001_ejecucion_btn_acciones_socioambiental',   'leer',  1, 1, 0),
+ ( 8, 'SSIPEM0001_ejecucion_btn_nuevo_liquidacion',         'crear', 1, 1, 0),
+ ( 9, 'SSIPEM0001_ejecucion_btn_acciones_liquidacion',      'leer',  1, 1, 0),
+ (10, 'SSIPEM0001_ejecucion_btn_nuevo_panelfotografico',    'crear', 1, 1, 1),
+ (11, 'SSIPEM0001_ejecucion_btn_acciones_panelfotografico', 'leer',  1, 1, 1);
+
+DECLARE @matriz TABLE (CodigoPerfil varchar(20), HasClaim varchar(200), Accion varchar(10), Orden int);
+INSERT @matriz SELECT 'P0025', HasClaim, Accion, Orden FROM @claims WHERE P0025 = 1
+UNION ALL SELECT 'P0023', HasClaim, Accion, Orden FROM @claims WHERE P0023 = 1
+UNION ALL SELECT 'P0024', HasClaim, Accion, Orden FROM @claims WHERE P0024 = 1;
+
+DECLARE @destino TABLE (CodigoPerfil varchar(20), PerfilPauId int NULL, ModuloPauId nvarchar(100) NULL);
+INSERT @destino (CodigoPerfil) VALUES ('P0025'), ('P0023'), ('P0024');
+UPDATE d SET PerfilPauId = p.PerfilPauId
+FROM @destino d JOIN integracion.PauPerfil p ON p.SistemaId = @SistemaId AND p.CodigoPerfil = d.CodigoPerfil AND p.Activo = 1;
+UPDATE d SET ModuloPauId = m.ModuloPauId
+FROM @destino d JOIN integracion.PauMenu m ON m.SistemaId = @SistemaId AND m.PerfilPauId = d.PerfilPauId AND m.CodigoMenu = 'M0001' AND m.Activo = 1;
+
+IF EXISTS (SELECT 1 FROM @destino WHERE PerfilPauId IS NULL OR ModuloPauId IS NULL)
+BEGIN
+    SELECT Problema = 'PERFIL SIN HOMOLOGAR O SIN MENU M0001 (correr 18/19 o P02 antes)', * FROM @destino WHERE PerfilPauId IS NULL OR ModuloPauId IS NULL;
+    THROW 56002, 'Falta homologar P0023/P0024/P0025 o su menu M0001.', 1;
+END
+
+BEGIN TRANSACTION;
+
+UPDATE o SET Activo = 1
+FROM integracion.PauOperacion o
+JOIN @destino d ON d.PerfilPauId = o.PerfilPauId AND d.ModuloPauId = o.ModuloPauId
+JOIN @matriz x ON x.CodigoPerfil = d.CodigoPerfil AND x.HasClaim = o.HasClaim
+WHERE o.SistemaId = @SistemaId AND o.Activo = 0;
+DECLARE @reactivados int = @@ROWCOUNT;
+
+INSERT integracion.PauOperacion (SistemaId, PerfilPauId, ModuloPauId, HasClaim, Accion, Activo)
+SELECT @SistemaId, d.PerfilPauId, d.ModuloPauId, x.HasClaim, x.Accion, 1
+FROM @matriz x JOIN @destino d ON d.CodigoPerfil = x.CodigoPerfil
+WHERE NOT EXISTS (SELECT 1 FROM integracion.PauOperacion o
+                  WHERE o.SistemaId = @SistemaId AND o.PerfilPauId = d.PerfilPauId AND o.ModuloPauId = d.ModuloPauId AND o.HasClaim = x.HasClaim);
+DECLARE @insertados int = @@ROWCOUNT;
+
+SELECT Bloque = 'Resumen', d.CodigoPerfil, d.PerfilPauId,
+       Esperados = (SELECT COUNT(*) FROM @matriz x WHERE x.CodigoPerfil = d.CodigoPerfil),
+       Activos = (SELECT COUNT(*) FROM @matriz x JOIN integracion.PauOperacion o
+                  ON o.SistemaId = @SistemaId AND o.PerfilPauId = d.PerfilPauId AND o.ModuloPauId = d.ModuloPauId AND o.HasClaim = x.HasClaim AND o.Activo = 1
+                  WHERE x.CodigoPerfil = d.CodigoPerfil)
+FROM @destino d ORDER BY d.CodigoPerfil;
+PRINT CONCAT('Claims insertados: ', @insertados, ' | reactivados: ', @reactivados);
+
+IF @confirmar = 1 BEGIN COMMIT; PRINT 'Bloque OK (se confirma o revierte al final segun CONFIRMAR).'; END
+ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Poner @confirmar = 1 para aplicar.'; END
+GO
+GO
+GO
+-- ############################################################################
+-- FUENTE: 29_corte_identidad_sso_asignar_proyecto.sql
+-- ############################################################################
+/*
+================================================================================
+ 29 - Corte de identidad SSO -> PAU: Asignar Proyecto y filtros de Seguimiento
+================================================================================
+ QUE ES
+   Reemplaza a 13_cutover_asignar_proyecto_PAU_DBSSIPE2.sql (que solo cubria 1
+   de los 4 SPs afectados). Deja a SSIPE sin leer identidad ni perfiles del SSO:
+
+   1) seguimiento.paListarAsignarProyectoFaseUsuario (reescrito)
+      - Candidatos a asignar: integracion.vw_UsuarioSsipe (PAU), perfiles
+        P0023 / P0028 / P0029 como antes.
+      - El "tipo de fase" (administrador / obra / expediente / preinversion) ya
+        NO lo manda el front: se calcula aqui con el perfil del usuario de la
+        sesion (IdUsuarioSesion, que inyecta el back desde el token PAU) usando
+        la misma regla que aplicaba el front sobre NombrePerfil.
+      - Misma forma de salida: {"Usuarios":[...]}.
+
+   2) seguimiento.paListarSeguimientoProyecto / paListarSeguimientoSeguimiento /
+      paListarSeguimientoConvenio (parche de UNA linea)
+      Obtenian el CodigoPerfil del usuario desde DBSSO.login.vw_UsuarioInternoSistemaSsipe
+      para decidir si solo ve sus proyectos asignados. Pasan a leerlo de
+      integracion.vw_UsuarioSsipe (perfil que otorgo el PAU). Con esto:
+        - un usuario nuevo en PAU (sin cuenta en el SSO) ya no queda con perfil
+          NULL (que hoy lo dejaba sin ver nada salvo lo asignado),
+        - se filtra con el perfil PAU y no con el viejo del SSO,
+        - se elimina la ambiguedad de la vista SSO (usuarios con varias filas).
+      El parche se aplica sobre la definicion VIGENTE del ambiente (no se
+      reescribe el SP completo), por eso sirve igual en DESA, QA y PROD aunque
+      otro script del pase haya tocado esos SPs. Exige encontrar la referencia
+      exactamente una vez; si no, aborta sin tocar nada. Si ya estaba aplicado,
+      lo informa y sigue (idempotente).
+
+   Los otros 4 SPs del modulo (paInsertar / paAnular / paListar /
+   paListar...Proyecto) no cambian: solo usan IdUsuario, que sigue siendo el
+   historico de SSIPE (lo garantiza la homologacion, script 25).
+
+ PRERREQUISITOS
+   27 y 28 aplicados; back SSIPE con la version que inyecta IdUsuario/IdUsuarioSesion
+   desde la sesion (rama dev_pau). Rollback: 29R.
+================================================================================
+*/
+IF DB_NAME() <> N'$(BASE_SSIPE)'
+   OR OBJECT_ID(N'integracion.vw_UsuarioSsipe', N'V') IS NULL
+   OR OBJECT_ID(N'seguimiento.AsignarProyectoFase', N'U') IS NULL
+BEGIN RAISERROR(N'Base incorrecta o falta integracion.vw_UsuarioSsipe (script 28): ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+
+CREATE OR ALTER PROCEDURE seguimiento.paListarAsignarProyectoFaseUsuario
+    @parametro NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF ISJSON(@parametro) = 0
+    BEGIN SELECT '{"estado":0,"mensaje":"Json Incorrecto"}'; RETURN; END
+
+    DECLARE @result NVARCHAR(MAX),
+            @tipoFase NVARCHAR(50),
+            @idUsuarioSesion INT = TRY_CONVERT(INT, JSON_VALUE(@parametro, '$.IdUsuarioSesion')),
+            @nombrePerfilSesion NVARCHAR(200);
+
+    DECLARE @codigoObra         VARCHAR(20) = 'P0023',
+            @codigoExpediente   VARCHAR(20) = 'P0028',
+            @codigoPreinversion VARCHAR(20) = 'P0029';
+
+    SELECT @nombrePerfilSesion = UPPER(NombrePerfil)
+    FROM integracion.vw_UsuarioSsipe
+    WHERE IdUsuario = @idUsuarioSesion;
+
+    -- Misma regla que usaba el front sobre el NombrePerfil de la sesion, ahora resuelta en el servidor.
+    SET @tipoFase = CASE
+        WHEN @nombrePerfilSesion LIKE '%ADMINISTRADOR%' THEN 'administrador'
+        WHEN @nombrePerfilSesion LIKE '%OBRA%'          THEN 'obra'
+        WHEN @nombrePerfilSesion LIKE '%EXPEDIENTE%'    THEN 'expediente'
+        WHEN @nombrePerfilSesion LIKE '%PREINVERSION%'  THEN 'preinversion'
+    END;
+
+    SELECT @result = (
+        SELECT JSON_QUERY(
+            COALESCE(
+                (
+                    SELECT
+                        u.IdUsuario,
+                        u.IdPersona,
+                        u.IdPerfil,
+                        u.CodigoPerfil,
+                        u.NombrePerfil,
+                        u.Usuario,
+                        u.Documento,
+                        u.Nombres,
+                        u.ApellidoPaterno,
+                        u.ApellidoMaterno,
+                        LTRIM(RTRIM(
+                            ISNULL(u.ApellidoPaterno, '') + ' ' +
+                            ISNULL(u.ApellidoMaterno, '') + ', ' +
+                            ISNULL(u.Nombres, '')
+                        )) AS NombreCompleto,
+                        u.Area,
+                        u.IdArea,
+                        ISNULL(asig.CantidadAsignados, 0) AS CantidadProyectosAsignados
+                    FROM integracion.vw_UsuarioSsipe u
+                    LEFT JOIN (
+                        SELECT IdUsuario, COUNT(*) AS CantidadAsignados
+                        FROM seguimiento.AsignarProyectoFase
+                        WHERE Activo = 1 AND Asignado = 1
+                        GROUP BY IdUsuario
+                    ) asig ON u.IdUsuario = asig.IdUsuario
+                    WHERE u.CodigoPerfil IN (@codigoObra, @codigoExpediente, @codigoPreinversion)
+                      AND @tipoFase IS NOT NULL
+                      AND (@tipoFase = 'administrador' OR u.NombrePerfil LIKE '%' + @tipoFase + '%')
+                    ORDER BY u.ApellidoPaterno, u.ApellidoMaterno, u.Nombres
+                    FOR JSON PATH
+                )
+            , '[]')
+        ) AS Usuarios
+        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    );
+
+    SELECT ISNULL(@result, '{}');
+END
+GO
+
+/* ---- Parche de una linea en los 3 SPs de Seguimiento ---- */
+SET XACT_ABORT ON;
+DECLARE @viejo nvarchar(200) = N'DBSSO.login.vw_UsuarioInternoSistemaSsipe',
+        @nuevo nvarchar(200) = N'integracion.vw_UsuarioSsipe';
+DECLARE @sp TABLE (Nombre sysname);
+INSERT @sp VALUES (N'paListarSeguimientoProyecto'), (N'paListarSeguimientoSeguimiento'), (N'paListarSeguimientoConvenio');
+DECLARE @reporte TABLE (Procedimiento sysname, Resultado nvarchar(200));
+
+DECLARE @nombre sysname, @def nvarchar(max), @veces int, @pos int, @resto nvarchar(40);
+DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT Nombre FROM @sp;
+OPEN c; FETCH NEXT FROM c INTO @nombre;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @def = OBJECT_DEFINITION(OBJECT_ID(N'seguimiento.' + @nombre));
+    IF @def IS NULL
+    BEGIN
+        DECLARE @msgNoExiste nvarchar(300) = CONCAT(N'No existe seguimiento.', @nombre, N'.');
+        THROW 55001, @msgNoExiste, 1;
+    END
+
+    SET @veces = (DATALENGTH(@def) - DATALENGTH(REPLACE(@def, @viejo, N''))) / DATALENGTH(@viejo);
+    IF @veces = 0 AND CHARINDEX(@nuevo, @def) > 0
+        INSERT @reporte VALUES (@nombre, N'YA ESTABA APLICADO (no se toca)');
+    ELSE IF @veces <> 1
+    BEGIN
+        DECLARE @msgVeces nvarchar(300) = CONCAT(N'seguimiento.', @nombre, N': se esperaba 1 referencia a la vista SSO y hay ', @veces, N'. Revisar a mano; no se aplico nada.');
+        THROW 55002, @msgVeces, 1;
+    END
+    ELSE
+    BEGIN
+        SET @def = REPLACE(@def, @viejo, @nuevo);
+        -- CREATE PROCEDURE -> ALTER PROCEDURE conservando permisos y el resto del texto tal cual
+        SET @pos = CHARINDEX(N'CREATE', @def);
+        SET @resto = LTRIM(REPLACE(REPLACE(REPLACE(SUBSTRING(@def, @pos + 6, 40), CHAR(13), N' '), CHAR(10), N' '), CHAR(9), N' '));
+        IF @pos = 0 OR (@resto NOT LIKE N'PROC%' AND @resto NOT LIKE N'OR ALTER PROC%')
+        BEGIN
+            DECLARE @msgCab nvarchar(300) = CONCAT(N'seguimiento.', @nombre, N': cabecera CREATE PROCEDURE no reconocida. No se aplico nada.');
+            THROW 55003, @msgCab, 1;
+        END
+        IF @resto LIKE N'PROC%' SET @def = STUFF(@def, @pos, 6, N'ALTER');
+        EXEC sys.sp_executesql @def;
+        INSERT @reporte VALUES (@nombre, N'APLICADO');
+    END
+    FETCH NEXT FROM c INTO @nombre;
+END
+CLOSE c; DEALLOCATE c;
+
+SELECT * FROM @reporte;
+GO
+
+/* ---- Verificacion: ningun objeto de SSIPE lee identidad del SSO (salvo la homologacion, que lo usa para reutilizar IdUsuario) ---- */
+SELECT Objeto = s.name + '.' + o.name, o.type_desc
+FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id
+WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF')
+  AND (OBJECT_DEFINITION(o.object_id) LIKE N'%vw_UsuarioInternoSistemaSsipe%' OR OBJECT_DEFINITION(o.object_id) LIKE N'%vw_PerfilesSistemaSsipe%')
+  AND NOT (s.name = N'integracion' AND o.name = N'paHomologarUsuariosPau');
+IF EXISTS (
+    SELECT 1 FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id
+    WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF')
+      AND (OBJECT_DEFINITION(o.object_id) LIKE N'%vw_UsuarioInternoSistemaSsipe%' OR OBJECT_DEFINITION(o.object_id) LIKE N'%vw_PerfilesSistemaSsipe%')
+      AND NOT (s.name = N'integracion' AND o.name = N'paHomologarUsuariosPau'))
+    THROW 55004, 'Quedan objetos leyendo identidad del SSO (ver resultado anterior).', 1;
+PRINT 'Corte de identidad SSO aplicado: SSIPE resuelve usuarios y perfiles solo desde PAU.';
+GO
+GO
+GO
+-- ############################################################################
+-- VERIFICACION PARTE 2
+-- ############################################################################
+SELECT Verificacion = N'Perfiles homologados', p.CodigoPerfil, p.NombrePerfil, p.PerfilPauId,
+       Menus = (SELECT STRING_AGG(m.CodigoMenu, ',') FROM integracion.PauMenu m WHERE m.SistemaId = p.SistemaId AND m.PerfilPauId = p.PerfilPauId AND m.Activo = 1),
+       Claims = (SELECT COUNT(*) FROM integracion.PauOperacion o WHERE o.SistemaId = p.SistemaId AND o.PerfilPauId = p.PerfilPauId AND o.Activo = 1)
+FROM integracion.PauPerfil p WHERE p.SistemaId = $(PAU_SISTEMA_ID) AND p.Activo = 1 ORDER BY p.CodigoPerfil;
+IF (SELECT COUNT(*) FROM integracion.PauPerfil WHERE SistemaId = $(PAU_SISTEMA_ID) AND Activo = 1 AND CodigoPerfil IN ('P0001', 'P0023', 'P0024', 'P0025', 'P0028', 'P0029', 'P0045')) <> 7
+BEGIN RAISERROR(N'Parte 2: no quedaron homologados los 7 perfiles del pase.', 16, 1); SET NOEXEC ON; END
+IF EXISTS (SELECT 1 FROM integracion.PauOperacion o JOIN integracion.PauPerfil p ON p.SistemaId = o.SistemaId AND p.PerfilPauId = o.PerfilPauId
+           WHERE p.CodigoPerfil = 'P0045' AND o.Activo = 1)
+BEGIN RAISERROR(N'Parte 2: P0045 (solo lectura) no debe tener claims.', 16, 1); SET NOEXEC ON; END
+GO
+-- ############################################################################
+-- CIERRE: confirma o revierte todo lo anterior
+-- ############################################################################
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'Transaccion exterior inconsistente: se revierte.', 16, 1); IF @@TRANCOUNT > 0 ROLLBACK; SET NOEXEC ON; END
+GO
+IF $(CONFIRMAR) = 1 BEGIN COMMIT; PRINT N'COMMIT REALIZADO.'; END
+ELSE BEGIN ROLLBACK; PRINT N'SIMULACION: ROLLBACK de todo. Revisar la salida y repetir con CONFIRMAR "1" en una conexion nueva.'; END
 GO
 SET NOEXEC OFF;
 GO
