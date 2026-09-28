@@ -34,10 +34,11 @@
    toca aunque se vuelva a correr el mismo lote.
 
  SIGUIENTE PASO
-   Con el Estado = 'ASIGNADO' (o el que ya existia), tomar las columnas
-   UsuarioPau y Dependencia de la salida y usarlas como UsuarioPauId /
-   DependenciaPauId al llamar integracion.paHomologarUsuariosPau en DBSSIPE2
-   (ver 25_SP_paHomologarUsuariosPau_DBSSIPE2.sql).
+   La ultima consulta (JsonParaScript25) devuelve el lote ya armado, con los
+   datos personales PAU, para pasarlo tal cual como @usuariosJson a
+   integracion.paHomologarUsuariosPau en la base SSIPE
+   (ver 25_SP_paHomologarUsuariosPau_DBSSIPE2.sql). Usar la corrida con
+   @confirmar = 1.
 ================================================================================
 */
 SET NOCOUNT ON; SET XACT_ABORT ON;
@@ -50,12 +51,12 @@ DECLARE @usuAuditoria int = 1;    -- USU_PK_USUAR del admin que ejecuta el alta 
 -- =====> UNICO BLOQUE A EDITAR EN CADA LOTE NUEVO <=====
 DECLARE @asig TABLE (Documento varchar(20), NombreCompleto nvarchar(200), CodigoSSO varchar(10));
 INSERT @asig VALUES
- -- (N'DNI', N'APELLIDOS Y NOMBRES', N'CodigoSSO')  -- ej: ('41080091', N'LINARES ACOSTA, ABY', 'P0023')
+ -- (N'DNI', N'APELLIDOS Y NOMBRES', N'CodigoSSO')  -- ej: ('00000001', N'PEREZ GOMEZ, JUAN', 'P0023')
  (N'00000000', N'EJEMPLO - REEMPLAZAR O BORRAR ESTA FILA', 'P0023');
 -- =====> FIN DEL BLOQUE A EDITAR <=====
 
 DECLARE @r TABLE (UltimoId int, Mensaje varchar(255), Ok int);
-DECLARE @out TABLE (Documento varchar(20), NombreCompleto nvarchar(200), CodigoSSO varchar(10), UsuarioPau int, Dependencia int, Grupo int, Estado varchar(60));
+DECLARE @out TABLE (Documento varchar(20), NombreCompleto nvarchar(200), CodigoSSO varchar(10), UsuarioPau int, Dependencia int, Grupo int, Estado varchar(80));
 BEGIN TRANSACTION;
 DECLARE @doc varchar(20), @nom nvarchar(200), @c varchar(10), @usu int, @den int, @gpr int;
 DECLARE cur CURSOR LOCAL FAST_FORWARD FOR SELECT Documento, NombreCompleto, CodigoSSO FROM @asig;
@@ -81,5 +82,23 @@ BEGIN
 END
 CLOSE cur; DEALLOCATE cur;
 SELECT * FROM @out ORDER BY Estado, Documento;
+
+-- JSON listo para integracion.paHomologarUsuariosPau (script 25 v2): incluye los datos personales PAU
+-- para que el usuario quede en el directorio de SSIPE y aparezca en Asignar Proyecto antes de su primer ingreso.
+-- Tomarlo de la corrida con @confirmar = 1. Columnas PAU segun el contrato GetUsuarioLoginPorIdSis
+-- (USU_FK_ENTID, USU_V_NOMUSU, ENT_V_NOMBRE, ENT_V_APPATE, ENT_V_APMATE).
+SELECT JsonParaScript25 = (
+    SELECT o.Documento, o.NombreCompleto, o.CodigoSSO,
+           o.UsuarioPau AS UsuarioPauId, o.Dependencia AS DependenciaPauId,
+           U.USU_FK_ENTID AS EntidadPauId, LTRIM(RTRIM(U.USU_V_NOMUSU)) AS UsuarioPau,
+           -- los registros hechos a mano en el portal pueden traer comas o espacios sobrantes
+           UPPER(LTRIM(RTRIM(REPLACE(E.ENT_V_NOMBRE, ',', '')))) AS Nombres,
+           UPPER(LTRIM(RTRIM(REPLACE(E.ENT_V_APPATE, ',', '')))) AS ApellidoPaterno,
+           UPPER(LTRIM(RTRIM(REPLACE(E.ENT_V_APMATE, ',', '')))) AS ApellidoMaterno
+    FROM @out o
+    JOIN I_USUARIO_USU U ON U.USU_PK_USUAR = o.UsuarioPau
+    JOIN I_ENTIDAD_ENT E ON E.ENT_PK_ENTID = U.USU_FK_ENTID
+    WHERE o.Estado IN ('ASIGNADO', 'YA TENIA ASIGNACION (no se toca)')
+    FOR JSON PATH);
 IF @confirmar = 1 BEGIN COMMIT; PRINT 'COMMIT realizado.'; END
 ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Revisar Estado por fila y poner @confirmar = 1 para aplicar.'; END

@@ -36,9 +36,15 @@ Ambientes autorizados: DBSSIPE2 en `PVDDEV-BD07\ARTEMISA36`, DBSSO de desarrollo
 | 8e | `18_alta_masiva_perfiles_SSIPE_en_PAU_PVDPAU_PROD.sql` | PVDPAU_PROD | Alta masiva de perfiles SSIPE en PAU (perfil + rol + módulos + grupo). Marcar `Activar=1` solo en los aprobados; devuelve los `PerfilPauId` |
 | 8f | `18b_asignaciones_usuarios_PAU_PVDPAU_PROD.sql` (en `integracion/fase1-temporal-pau-ssipe/evidencias/privado/`, **no en git**: contiene DNIs) | PVDPAU_PROD | Asigna usuarios reales a los perfiles creados, cruzando por documento; reporta los que no existen en PAU |
 | 8g | `19_homologacion_masiva_perfiles_DBSSIPE2.sql` | DBSSIPE2 | PauPerfil + PauMenu + PauOperacion para todos los perfiles (39 menús, 710 claims). Completar `@map` con los ids del 18 |
-| 9 | `13_precheck_cutover_asignar_proyecto_DBSSIPE2.sql` | DBSSIPE2 | Decide si existe cobertura suficiente para cortar SSO |
-| 10 | `13_cutover_asignar_proyecto_PAU_DBSSIPE2.sql` | DBSSIPE2 | Sustituye las vistas SSO únicamente si pasan las guardas |
-| R | `13_rollback_asignar_proyecto_SSO_DBSSIPE2.sql` | DBSSIPE2 | Restaura temporalmente las vistas SSO |
+| 9 | `27_sp_sesion_directorio_PAU.sql` | DBSSIPE2 | SPs de sesión y directorio PAU sin el candado `DB_NAME()` en el cuerpo (portables a QA/PROD) |
+| 10 | `28_identidad_usuario_y_areas.sql` | DBSSIPE2 | Vista `integracion.vw_UsuarioSsipe` (identidad desde PAU) + `integracion.paListarArea` (reemplaza el bloque 1 de `DESPLIEGUE_2_DBSSO.sql`) |
+| 11 | `30_claims_ejecucion_cva_PAU.sql` | DBSSIPE2 | Los 11 claims de Ejecución CVA en `PauOperacion` (reemplaza el bloque 2 de `DESPLIEGUE_2_DBSSO.sql`) |
+| 12 | `29_corte_identidad_sso_asignar_proyecto.sql` | DBSSIPE2 | Corte: Asignar Proyecto y filtros de Seguimiento leen identidad solo de PAU |
+| R | `29R_rollback_corte_identidad_sso.sql` | DBSSIPE2 | Vuelve a las vistas SSO (junto con `PauIntegration:Enabled=false` en el back) |
+
+Los `13_precheck/cutover/rollback_asignar_proyecto` quedan **reemplazados por el 29/29R**: solo cubrían 1 de los 4 SPs que leían identidad del SSO y dependían de un directorio que se llenaba únicamente al iniciar sesión.
+
+**Aplicado en DBSSIPE2 el 25/09/2026:** 27, 28, 25 v2 y 29 (el 30 no tuvo nada que insertar). El paquete para QA/PROD, validado contra DBSSIPE3, está en [`PASE_QA_PROD/`](PASE_QA_PROD/README.md).
 
 `Ejecutar-Desarrollo.ps1` acepta únicamente scripts DBSSIPE2 de esta lista, fija servidor/base, separa lotes `GO` y genera evidencia JSON con SHA-256. En una copia independiente toma la conexión desde `SSIPE_DBSSIPE2_CONNECTION`; dentro del workspace SSIPE también puede leer el `appsettings.json` local. Nunca imprime la cadena. La línea base DBSSO se ejecuta por separado y es estrictamente de lectura.
 
@@ -51,12 +57,7 @@ P0023, P0024 y P0025 activos. Verificado de punta a punta (`paResolverSesionPau`
 correcto) **solo para el usuario de prueba `42910203`** — los demás (U2-U4) están homologados en
 DBSSIPE2 y asignados en PAU pero sin una verificación end-to-end documentada todavía.
 
-El precheck de corte (`13_precheck_cutover_asignar_proyecto_DBSSIPE2.sql`) seguía devolviendo
-`ListoParaCorte=0` en la última corrida porque la cobertura de identidades PAU homologadas aún es baja
-(4 usuarios reales, 11 perfiles SSO sin homologar todavía). Por ese motivo el corte
-(`13_cutover_asignar_proyecto_PAU_DBSSIPE2.sql`) no se ejecutó y las vistas SSO clásicas en
-`seguimiento.AsignarProyectoFase` siguen intactas — ambas rutas de identidad (SSO y PAU) coexisten a
-propósito hasta que se decida el corte.
+**Decisión 25/09/2026:** desde el pase a producción SSIPE entra **solo por PAU**. El back (`dev_pau`) rechaza el token SSO y toma `IdUsuario`/auditoría de la sesión, y en DBSSIPE2 ya se aplicó el corte de identidad (script 29). El SSO sigue vivo solo como catálogo de áreas y como fuente del `IdUsuario` histórico al homologar.
 
 ## Estandar reutilizable para altas de usuario (a partir de sep-2026)
 
@@ -67,7 +68,16 @@ adelante, usar en su lugar estos dos archivos (no crear un script nuevo por lote
 | Fase | Archivo | Base | Qué hace |
 |---|---|---|---|
 | 1 | `24_ALTA_ESTANDAR_asignar_perfil_PAU.sql` | PVDPAU_PROD (o su equivalente por ambiente) | Único archivo a editar por lote: completar la tabla `@asig` con Documento/Nombre/CodigoSSO. Asigna el perfil en PAU de forma idempotente (`@confirmar=0` simula). |
-| 2 | `25_SP_paHomologarUsuariosPau_DBSSIPE2.sql` | DBSSIPE2 (o su equivalente por ambiente) | Crea el procedimiento `integracion.paHomologarUsuariosPau` (una sola vez por ambiente). Se invoca por lote con un JSON armado con la salida de la fase 1; reutiliza el `IdUsuario` si el documento ya es un usuario SSIPE conocido en el SSO (`DBSSO.login.vw_UsuarioInternoSistemaSsipe`, misma instancia), o asigna uno nuevo nunca antes emitido si es un usuario genuinamente nuevo. |
+| 2 | `25_SP_paHomologarUsuariosPau_DBSSIPE2.sql` | DBSSIPE2 (o su equivalente por ambiente) | Crea el procedimiento `integracion.paHomologarUsuariosPau` (una sola vez por ambiente). Se invoca por lote con el JSON que devuelve la última consulta del 24. Reutiliza el `IdUsuario` si el documento ya es un usuario SSIPE conocido en el SSO o si ya estaba homologado; si es genuinamente nuevo le asigna uno nunca antes emitido. **v2:** también registra al usuario en `integracion.PauDirectorio`, así aparece en Asignar Proyecto antes de su primer ingreso. |
+
+**Desde un Excel (DESA o PROD):** `herramientas/generar_alta_usuarios.py` lee un Excel con las columnas *APELLIDOS Y NOMBRES | DNI | PERFIL* e ignora las demás, incluidas claves u observaciones. Acepta el perfil por nombre ("Administrador de Contrato", "Coordinador de obra"…) o por código Pxxxx. Genera los dos scripts del lote: `_1_PAU.sql` (el 24 con `@asig` cargado) y `_2_SSIPE.sql` (llamada al 25, donde se pega el `JsonParaScript25`). Los scripts generados contienen DNIs: guardarlos en `integracion/fase1-temporal-pau-ssipe/docs/USUARIOS/lotes/`, que está fuera de git.
+
+```
+python herramientas/generar_alta_usuarios.py usuarios.xlsx --salida <carpeta lotes> --revisado-por <DNI>
+       --ambiente PROD --pau-db <base PAU PROD> --ssipe-db <base SSIPE PROD> --sistema-id <id SSIPE en PAU PROD> --id-area-defecto <IdArea>
+```
+
+Los usuarios que no existen en PAU salen como `USUARIO NO EXISTE EN PAU`: se registran por el portal PAU y se vuelve a correr el mismo lote, que es idempotente.
 
 Este estándar no reemplaza los pasos 0-7 (infraestructura de tablas/SP, se corren una sola vez) ni el
 18/19 (alta de un perfil SSIPE nuevo en PAU, se corre una sola vez por perfil, no por usuario).
