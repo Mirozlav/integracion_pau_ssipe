@@ -5,53 +5,63 @@
  PASE PAU -> SSIPE, PARTE 2 de 2 (perfiles y corte). Base SSIPE del ambiente.
    P02 perfiles/menus/claims SSIPE con los ids del PAU del ambiente
        (P0001, P0023, P0024, P0025, P0028, P0029 y P0045 LECTOR GENERAL = "Seguimiento", solo lectura)
-   30  11 claims de Ejecucion CVA (reemplaza el bloque 2 de DESPLIEGUE_2_DBSSO)
+   30  11 claims de Ejecucion CVA
    29  corte de identidad: Asignar Proyecto y filtros de listados leen PAU
- Requiere: parte 1 y DESPLIEGUE_1_DBSSIPE.sql aplicados, y los ids que entrega el
- equipo PAU al correr P03_sistema_modulos_perfiles_SSIPE_en_PAU.sql en el PAU.
- Ejecutar en la MISMA ventana en que se publican back y front (rama dev_pau).
- Rollback: integracion_pau_ssipe_R_rollback_corte.sql + PauIntegration:Enabled=false.
+ Requiere la parte 1, DESPLIEGUE_1_DBSSIPE.sql y los ids que devuelve el script de perfiles
+ en el PAU (P03): salida 'sistema', 'resultado' y 'modulos'.
 
- COMO SE EJECUTA
-   - Modo SQLCMD obligatorio (SSMS: menu Consulta > Modo SQLCMD; o sqlcmd -b -I).
-     Sin SQLCMD no ejecuta nada.
-   - Conectado a la base SSIPE del ambiente, con una cuenta con permisos DDL.
-   - Primero con CONFIRMAR "0" (simula todo y hace ROLLBACK). Revisar la salida.
-     Luego CONFIRMAR "1" en una conexion nueva.
-   - Corta ante el primer error; si corta, la transaccion se revierte completa.
- GENERADO por herramientas/armar_integracion_pau_ssipe.py: no editar a mano,
- salvo el bloque :setvar de abajo.
+ COMO SE EJECUTA (ventana de consultas normal del gestor, conectado a la base SSIPE)
+   1. Completar SOLO el bloque "EDITAR SOLO AQUI" (debajo).
+   2. Ejecutar todo con CONFIRMAR = 0: simula y revierte. Revisar que termine en
+      "SIMULACION OK" y sin errores.
+   3. Cambiar CONFIRMAR a 1 y ejecutar de nuevo: termina en "COMMIT REALIZADO".
+   Si aparece un error, el script se detiene y revierte todo: no queda nada a medias.
+ GENERADO por herramientas/armar_integracion_pau_ssipe.py: no editar fuera del bloque.
 ================================================================================
 */
-:on error exit
-:setvar __MODO_SQLCMD "SI"         -- no tocar
-:setvar BASE_SSIPE "DBSSIPE"       -- base SSIPE del ambiente
-:setvar CONFIRMAR "0"              -- 0 = simular, 1 = aplicar
-:setvar PAU_SISTEMA_ID "NULL"      -- P03 'sistema': SistemaId (= PauIntegration:SistemaId)
-:setvar PAU_PERFIL_P0001 "NULL"    -- P03 'resultado': PerfilPauId de P0001
-:setvar PAU_PERFIL_P0023 "NULL"    -- P03 'resultado': PerfilPauId de P0023
-:setvar PAU_PERFIL_P0024 "NULL"    -- P03 'resultado': PerfilPauId de P0024
-:setvar PAU_PERFIL_P0025 "NULL"    -- P03 'resultado': PerfilPauId de P0025
-:setvar PAU_PERFIL_P0028 "NULL"    -- P03 'resultado': PerfilPauId de P0028
-:setvar PAU_PERFIL_P0029 "NULL"    -- P03 'resultado': PerfilPauId de P0029
-:setvar PAU_PERFIL_P0045 "NULL"    -- P03 'resultado': PerfilPauId de P0045
-:setvar PAU_MODULO_M0001 "NULL"    -- P03 'modulos': ModuloPauId de M0001
-:setvar PAU_MODULO_M0007 "NULL"    -- P03 'modulos': ModuloPauId de M0007
-:setvar PAU_MODULO_M0043 "NULL"    -- P03 'modulos': ModuloPauId de M0043
-:setvar PAU_MODULO_M1051 "NULL"    -- P03 'modulos': ModuloPauId de M1051
+SET NOEXEC OFF;
+IF @@TRANCOUNT > 0 ROLLBACK;
+SET NOCOUNT ON;
+IF OBJECT_ID(N'tempdb..#param') IS NOT NULL DROP TABLE #param;
+CREATE TABLE #param (Nombre sysname PRIMARY KEY, Valor nvarchar(200) NULL);
+-- ============================ EDITAR SOLO AQUI ============================
+INSERT #param VALUES (N'BASE_SSIPE', N'DBSSIPE');               -- base SSIPE a la que esta conectado (DESA: DBSSIPE2)
+INSERT #param VALUES (N'CONFIRMAR', N'0');                      -- 0 = simular, 1 = aplicar
+INSERT #param VALUES (N'PAU_SISTEMA_ID', N'<<<COMPLETAR>>>');   -- P03 'sistema': SistemaId
+INSERT #param VALUES (N'PAU_PERFIL_P0001', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0001
+INSERT #param VALUES (N'PAU_PERFIL_P0023', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0023
+INSERT #param VALUES (N'PAU_PERFIL_P0024', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0024
+INSERT #param VALUES (N'PAU_PERFIL_P0025', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0025
+INSERT #param VALUES (N'PAU_PERFIL_P0028', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0028
+INSERT #param VALUES (N'PAU_PERFIL_P0029', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0029
+INSERT #param VALUES (N'PAU_PERFIL_P0045', N'<<<COMPLETAR>>>'); -- P03 'resultado': PerfilPauId de P0045
+INSERT #param VALUES (N'PAU_MODULO_M0001', N'<<<COMPLETAR>>>'); -- P03 'modulos': ModuloPauId de M0001
+INSERT #param VALUES (N'PAU_MODULO_M0007', N'<<<COMPLETAR>>>'); -- P03 'modulos': ModuloPauId de M0007
+INSERT #param VALUES (N'PAU_MODULO_M0043', N'<<<COMPLETAR>>>'); -- P03 'modulos': ModuloPauId de M0043
+INSERT #param VALUES (N'PAU_MODULO_M1051', N'<<<COMPLETAR>>>'); -- P03 'modulos': ModuloPauId de M1051
+-- ==========================================================================
 GO
-IF N'$(__MODO_SQLCMD)' <> N'SI'
-BEGIN RAISERROR(N'Ejecutar en modo SQLCMD (SSMS: Consulta > Modo SQLCMD). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE') OR ISNULL((SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR'), N'') NOT IN (N'0', N'1')
+BEGIN RAISERROR(N'Base conectada distinta de BASE_SSIPE, o CONFIRMAR distinto de 0/1. No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
 GO
-IF DB_NAME() <> N'$(BASE_SSIPE)' OR N'$(CONFIRMAR)' NOT IN (N'0', N'1')
-BEGIN RAISERROR(N'Base distinta de BASE_SSIPE o CONFIRMAR distinto de 0/1: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
-GO
-IF TRY_CONVERT(int, N'$(PAU_SISTEMA_ID)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0001)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0023)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0024)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0025)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0028)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0029)') IS NULL OR TRY_CONVERT(int, N'$(PAU_PERFIL_P0045)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0001)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0007)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M0043)') IS NULL OR TRY_CONVERT(int, N'$(PAU_MODULO_M1051)') IS NULL
-BEGIN RAISERROR(N'Completar en :setvar los ids del PAU del ambiente (salida de P03). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
+IF (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_SISTEMA_ID') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0001') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0023') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0024') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0025') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0028') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0029') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0045') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_MODULO_M0001') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_MODULO_M0007') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_MODULO_M0043') IS NULL
+   OR (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_MODULO_M1051') IS NULL
+BEGIN RAISERROR(N'Completar en el bloque EDITAR SOLO AQUI los ids del PAU (salida del script de perfiles P03). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
 GO
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
-PRINT CONCAT(N'Inicio en ', @@SERVERNAME, N'.', DB_NAME(), N' | CONFIRMAR=$(CONFIRMAR) | ', CONVERT(varchar(19), SYSDATETIME(), 120));
+DECLARE @confirmarTexto nvarchar(10) = (SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR');
+PRINT CONCAT(N'Inicio en ', @@SERVERNAME, N'.', DB_NAME(), N' | CONFIRMAR=', @confirmarTexto, N' | ', CONVERT(varchar(19), SYSDATETIME(), 120));
 GO
 -- ############################################################################
 -- FUENTE: PASE_QA_PROD/P02_homologacion_perfiles_QA_PROD.sql
@@ -78,32 +88,35 @@ GO
    Base SSIPE del ambiente, despues de P01. No toca PauUsuario (eso es el 24/25).
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.PauOperacion', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta P01: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 SET NOCOUNT ON; SET XACT_ABORT ON;
 
-DECLARE @confirmar bit = 1;   -- consolidado: lo decide la transaccion exterior (CONFIRMAR)
-DECLARE @SistemaId int = $(PAU_SISTEMA_ID);   -- <<< SistemaId de SSIPE en el PAU del ambiente (= PauIntegration:SistemaId del back)
+DECLARE @confirmar bit = 1;   -- consolidado: lo decide CONFIRMAR al final del script
+DECLARE @SistemaId int = (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_SISTEMA_ID');   -- <<< SistemaId de SSIPE en el PAU del ambiente (= PauIntegration:SistemaId del back)
 IF @SistemaId IS NULL THROW 57001, 'Completar @SistemaId con el id de SSIPE en el PAU del ambiente.', 1;
 
 DECLARE @map TABLE (CodigoSSO varchar(10), PerfilPauId int NULL, IdPerfilSSO int, NombrePerfil nvarchar(200));
 INSERT @map (CodigoSSO, PerfilPauId, IdPerfilSSO, NombrePerfil) VALUES
- ('P0001', $(PAU_PERFIL_P0001), 1, N'ADMINISTRADOR'),
+ ('P0001', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0001'), 1, N'ADMINISTRADOR'),
  ('P0021', NULL, 28, N'GERENTE DE OBRA'),
  ('P0022', NULL, 29, N'JEFE DE OBRA'),
- ('P0023', $(PAU_PERFIL_P0023), 30, N'ADMINISTRADOR DE CONTRATO DE OBRA'),
- ('P0024', $(PAU_PERFIL_P0024), 31, N'SUPERVISOR DE OBRA'),
- ('P0025', $(PAU_PERFIL_P0025), 32, N'COORDINADOR DE OBRA'),
+ ('P0023', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0023'), 30, N'ADMINISTRADOR DE CONTRATO DE OBRA'),
+ ('P0024', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0024'), 31, N'SUPERVISOR DE OBRA'),
+ ('P0025', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0025'), 32, N'COORDINADOR DE OBRA'),
  ('P0027', NULL, 34, N'COORDINADOR EXPEDIENTE'),
- ('P0028', $(PAU_PERFIL_P0028), 35, N'ESPECIALISTA DE EXPEDIENTE'),
- ('P0029', $(PAU_PERFIL_P0029), 36, N'ESPECIALISTA PREINVERSION'),
+ ('P0028', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0028'), 35, N'ESPECIALISTA DE EXPEDIENTE'),
+ ('P0029', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0029'), 36, N'ESPECIALISTA PREINVERSION'),
  ('P0041', NULL, 1047, N'RESPONSABLE EXPEDIENTE TECNICO'),
  ('P0042', NULL, 1048, N'RESPONSABLE PACRI'),
  ('P0043', NULL, 1049, N'RESPONSABLE EJECUCION'),
  ('P0044', NULL, 1050, N'COORDINADOR PATS'),
- ('P0045', $(PAU_PERFIL_P0045), 1051, N'LECTOR GENERAL'),
+ ('P0045', (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_PERFIL_P0045'), 1051, N'LECTOR GENERAL'),
  ('P0046', NULL, 1052, N'RESPONSABLE ABASTECIMIENTO');   -- <<< reemplazar NULL por el PerfilPauId del script 18
 
 DECLARE @menu TABLE (CodigoSSO varchar(10), CodigoMenu varchar(10), ModuloPauId nvarchar(100), NombreMenu nvarchar(200), Url nvarchar(300), Icono nvarchar(100), Orden int);
@@ -866,10 +879,10 @@ INSERT @op VALUES
 
 DECLARE @modulo TABLE (ModuloDesa nvarchar(100), CodigoMenu varchar(10), ModuloPauId nvarchar(100) NULL);
 INSERT @modulo VALUES
- (N'2182', 'M0001', N'$(PAU_MODULO_M0001)'),   -- Seguimiento       <<< MOD_PK_MODUL del ambiente
- (N'2183', 'M0007', N'$(PAU_MODULO_M0007)'),   -- Proyecto          <<< MOD_PK_MODUL del ambiente
- (N'2184', 'M0043', N'$(PAU_MODULO_M0043)'),   -- Convenio          <<< MOD_PK_MODUL del ambiente
- (N'2185', 'M1051', N'$(PAU_MODULO_M1051)');   -- Asignar Proyecto  <<< MOD_PK_MODUL del ambiente
+ (N'2182', 'M0001', (SELECT Valor FROM #param WHERE Nombre = N'PAU_MODULO_M0001')),   -- Seguimiento       <<< MOD_PK_MODUL del ambiente
+ (N'2183', 'M0007', (SELECT Valor FROM #param WHERE Nombre = N'PAU_MODULO_M0007')),   -- Proyecto          <<< MOD_PK_MODUL del ambiente
+ (N'2184', 'M0043', (SELECT Valor FROM #param WHERE Nombre = N'PAU_MODULO_M0043')),   -- Convenio          <<< MOD_PK_MODUL del ambiente
+ (N'2185', 'M1051', (SELECT Valor FROM #param WHERE Nombre = N'PAU_MODULO_M1051'));   -- Asignar Proyecto  <<< MOD_PK_MODUL del ambiente
 IF EXISTS (SELECT 1 FROM @modulo WHERE ModuloPauId IS NULL)
     THROW 57002, 'Completar @modulo con los ModuloPauId (MOD_PK_MODUL) de SSIPE en el PAU del ambiente.', 1;
 IF NOT EXISTS (SELECT 1 FROM @map WHERE PerfilPauId IS NOT NULL)
@@ -910,7 +923,16 @@ FROM integracion.PauPerfil p WHERE p.SistemaId = @SistemaId ORDER BY p.CodigoPer
 IF @confirmar = 1 BEGIN COMMIT; PRINT 'Bloque OK (se confirma o revierte al final segun CONFIRMAR).'; END
 ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Poner @confirmar = 1 para aplicar.'; END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- FUENTE: 30_claims_ejecucion_cva_PAU.sql
@@ -957,13 +979,16 @@ GO
    Los usuarios ven los claims nuevos al volver a ingresar desde el PAU.
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.PauOperacion', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta la infraestructura de integracion: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 SET NOCOUNT ON; SET XACT_ABORT ON;
 
-DECLARE @confirmar bit = 1;   -- consolidado: lo decide la transaccion exterior (CONFIRMAR)
+DECLARE @confirmar bit = 1;   -- consolidado: lo decide CONFIRMAR al final del script
 
 -- SistemaId de SSIPE en el PAU del ambiente: se toma de la homologacion (debe haber uno solo).
 DECLARE @SistemaId int = (SELECT MIN(SistemaId) FROM integracion.PauPerfil WHERE Activo = 1);
@@ -1029,7 +1054,16 @@ PRINT CONCAT('Claims insertados: ', @insertados, ' | reactivados: ', @reactivado
 IF @confirmar = 1 BEGIN COMMIT; PRINT 'Bloque OK (se confirma o revierte al final segun CONFIRMAR).'; END
 ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Poner @confirmar = 1 para aplicar.'; END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- FUENTE: 29_corte_identidad_sso_asignar_proyecto.sql
@@ -1075,10 +1109,13 @@ GO
    desde la sesion (rama dev_pau). Rollback: 29R.
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.vw_UsuarioSsipe', N'V') IS NULL
    OR OBJECT_ID(N'seguimiento.AsignarProyectoFase', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta integracion.vw_UsuarioSsipe (script 28): ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 
 CREATE OR ALTER PROCEDURE seguimiento.paListarAsignarProyectoFaseUsuario
@@ -1154,6 +1191,9 @@ BEGIN
     SELECT ISNULL(@result, '{}');
 END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 
 /* ---- Parche de una linea en los 3 SPs de Seguimiento ---- */
 SET XACT_ABORT ON;
@@ -1204,6 +1244,9 @@ CLOSE c; DEALLOCATE c;
 
 SELECT * FROM @reporte;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 
 /* ---- Verificacion: ningun objeto de SSIPE lee identidad del SSO (salvo la homologacion, que lo usa para reutilizar IdUsuario) ---- */
 SELECT Objeto = s.name + '.' + o.name, o.type_desc
@@ -1219,7 +1262,16 @@ IF EXISTS (
     THROW 55004, 'Quedan objetos leyendo identidad del SSO (ver resultado anterior).', 1;
 PRINT 'Corte de identidad SSO aplicado: SSIPE resuelve usuarios y perfiles solo desde PAU.';
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- VERIFICACION PARTE 2
@@ -1227,8 +1279,8 @@ GO
 SELECT Verificacion = N'Perfiles homologados', p.CodigoPerfil, p.NombrePerfil, p.PerfilPauId,
        Menus = (SELECT STRING_AGG(m.CodigoMenu, ',') FROM integracion.PauMenu m WHERE m.SistemaId = p.SistemaId AND m.PerfilPauId = p.PerfilPauId AND m.Activo = 1),
        Claims = (SELECT COUNT(*) FROM integracion.PauOperacion o WHERE o.SistemaId = p.SistemaId AND o.PerfilPauId = p.PerfilPauId AND o.Activo = 1)
-FROM integracion.PauPerfil p WHERE p.SistemaId = $(PAU_SISTEMA_ID) AND p.Activo = 1 ORDER BY p.CodigoPerfil;
-IF (SELECT COUNT(*) FROM integracion.PauPerfil WHERE SistemaId = $(PAU_SISTEMA_ID) AND Activo = 1 AND CodigoPerfil IN ('P0001', 'P0023', 'P0024', 'P0025', 'P0028', 'P0029', 'P0045')) <> 7
+FROM integracion.PauPerfil p WHERE p.SistemaId = (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_SISTEMA_ID') AND p.Activo = 1 ORDER BY p.CodigoPerfil;
+IF (SELECT COUNT(*) FROM integracion.PauPerfil WHERE SistemaId = (SELECT TRY_CONVERT(int, Valor) FROM #param WHERE Nombre = N'PAU_SISTEMA_ID') AND Activo = 1 AND CodigoPerfil IN ('P0001', 'P0023', 'P0024', 'P0025', 'P0028', 'P0029', 'P0045')) <> 7
 BEGIN RAISERROR(N'Parte 2: no quedaron homologados los 7 perfiles del pase.', 16, 1); SET NOEXEC ON; END
 IF EXISTS (SELECT 1 FROM integracion.PauOperacion o JOIN integracion.PauPerfil p ON p.SistemaId = o.SistemaId AND p.PerfilPauId = o.PerfilPauId
            WHERE p.CodigoPerfil = 'P0045' AND o.Activo = 1)
@@ -1238,10 +1290,13 @@ GO
 -- CIERRE: confirma o revierte todo lo anterior
 -- ############################################################################
 IF @@TRANCOUNT <> 1
-BEGIN RAISERROR(N'Transaccion exterior inconsistente: se revierte.', 16, 1); IF @@TRANCOUNT > 0 ROLLBACK; SET NOEXEC ON; END
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
-IF $(CONFIRMAR) = 1 BEGIN COMMIT; PRINT N'COMMIT REALIZADO.'; END
-ELSE BEGIN ROLLBACK; PRINT N'SIMULACION: ROLLBACK de todo. Revisar la salida y repetir con CONFIRMAR "1" en una conexion nueva.'; END
+IF (SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR') = N'1' BEGIN COMMIT; PRINT N'COMMIT REALIZADO: cambios aplicados.'; END
+ELSE BEGIN ROLLBACK; PRINT N'SIMULACION OK: no se aplico nada. Cambiar CONFIRMAR a 1 y ejecutar de nuevo.'; END
 GO
 SET NOEXEC OFF;
+GO
+IF @@TRANCOUNT > 0
+BEGIN ROLLBACK; RAISERROR(N'EJECUCION DETENIDA: se revirtio todo. Revise el primer mensaje de error.', 16, 1); END
 GO

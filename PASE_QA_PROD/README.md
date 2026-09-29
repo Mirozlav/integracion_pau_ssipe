@@ -34,14 +34,14 @@ Es el perfil de solo lectura. Reutiliza el código y el `IdPerfil` 1051 del P004
 ## Scripts consolidados (recomendado para QA/PROD)
 
 `herramientas/armar_integracion_pau_ssipe.py` los genera a partir de los fuentes; no se editan a mano. Todos siguen las mismas reglas:
-- corren en modo SQLCMD y cortan ante el primer error;
-- van en una transacción exterior: `CONFIRMAR "0"` simula todo y `"1"` aplica;
-- tienen una sola guarda de base: `BASE_SSIPE`.
+- se abren y ejecutan tal cual en la ventana de consultas del gestor (sin modo SQLCMD);
+- los parámetros van en un único bloque `EDITAR SOLO AQUI` (tabla temporal `#param`): `BASE_SSIPE`, `CONFIRMAR` y, en la parte 2, los ids del PAU;
+- van en una transacción: `CONFIRMAR = 0` simula todo y `1` aplica; ante el primer error se detienen y revierten, y se pueden reejecutar en la misma ventana.
 
 | Script | Contiene | Cuándo |
 |---|---|---|
 | `integracion_pau_ssipe_1_estructura.sql` | P01 + 27 + 28 + 25 | Antes de `DESPLIEGUE_1_DBSSIPE.sql`, que lo requiere. No cambia el comportamiento del back anterior. |
-| `integracion_pau_ssipe_2_perfiles_y_corte.sql` | P02 + 30 + 29 | Después de `DESPLIEGUE_1` (y PATS), en la ventana del back/front. Los ids del PAU (salida de P03) van en su bloque `:setvar`. |
+| `integracion_pau_ssipe_2_perfiles_y_corte.sql` | P02 + 30 + 29 | Después de `DESPLIEGUE_1` (y PATS), en la ventana del back/front. Los ids del PAU (salida de P03) van en su bloque `EDITAR SOLO AQUI`. |
 | `integracion_pau_ssipe_R_rollback_corte.sql` | 29R | Solo para volver al SSO. |
 
 **Ensayo del 28/09 en DBSSIPE3**, en una sola conexión y transacción revertida:

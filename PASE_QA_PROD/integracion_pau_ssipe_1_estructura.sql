@@ -8,33 +8,33 @@
    25 SP integracion.paHomologarUsuariosPau (v2)
  No necesita ids del PAU ni cambia el comportamiento del back actual.
  Es PRERREQUISITO de DESPLIEGUE_1_DBSSIPE.sql (sus listados leen la vista).
- Previo: P00_precheck_QA_PROD.sql con el usuario del back (ListoParaPase=1).
 
- COMO SE EJECUTA
-   - Modo SQLCMD obligatorio (SSMS: menu Consulta > Modo SQLCMD; o sqlcmd -b -I).
-     Sin SQLCMD no ejecuta nada.
-   - Conectado a la base SSIPE del ambiente, con una cuenta con permisos DDL.
-   - Primero con CONFIRMAR "0" (simula todo y hace ROLLBACK). Revisar la salida.
-     Luego CONFIRMAR "1" en una conexion nueva.
-   - Corta ante el primer error; si corta, la transaccion se revierte completa.
- GENERADO por herramientas/armar_integracion_pau_ssipe.py: no editar a mano,
- salvo el bloque :setvar de abajo.
+ COMO SE EJECUTA (ventana de consultas normal del gestor, conectado a la base SSIPE)
+   1. Completar SOLO el bloque "EDITAR SOLO AQUI" (debajo).
+   2. Ejecutar todo con CONFIRMAR = 0: simula y revierte. Revisar que termine en
+      "SIMULACION OK" y sin errores.
+   3. Cambiar CONFIRMAR a 1 y ejecutar de nuevo: termina en "COMMIT REALIZADO".
+   Si aparece un error, el script se detiene y revierte todo: no queda nada a medias.
+ GENERADO por herramientas/armar_integracion_pau_ssipe.py: no editar fuera del bloque.
 ================================================================================
 */
-:on error exit
-:setvar __MODO_SQLCMD "SI"         -- no tocar
-:setvar BASE_SSIPE "DBSSIPE"       -- base SSIPE del ambiente
-:setvar CONFIRMAR "0"              -- 0 = simular, 1 = aplicar
+SET NOEXEC OFF;
+IF @@TRANCOUNT > 0 ROLLBACK;
+SET NOCOUNT ON;
+IF OBJECT_ID(N'tempdb..#param') IS NOT NULL DROP TABLE #param;
+CREATE TABLE #param (Nombre sysname PRIMARY KEY, Valor nvarchar(200) NULL);
+-- ============================ EDITAR SOLO AQUI ============================
+INSERT #param VALUES (N'BASE_SSIPE', N'DBSSIPE');               -- base SSIPE a la que esta conectado (DESA: DBSSIPE2)
+INSERT #param VALUES (N'CONFIRMAR', N'0');                      -- 0 = simular, 1 = aplicar
+-- ==========================================================================
 GO
-IF N'$(__MODO_SQLCMD)' <> N'SI'
-BEGIN RAISERROR(N'Ejecutar en modo SQLCMD (SSMS: Consulta > Modo SQLCMD). No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
-GO
-IF DB_NAME() <> N'$(BASE_SSIPE)' OR N'$(CONFIRMAR)' NOT IN (N'0', N'1')
-BEGIN RAISERROR(N'Base distinta de BASE_SSIPE o CONFIRMAR distinto de 0/1: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE') OR ISNULL((SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR'), N'') NOT IN (N'0', N'1')
+BEGIN RAISERROR(N'Base conectada distinta de BASE_SSIPE, o CONFIRMAR distinto de 0/1. No se ejecuto nada.', 16, 1); SET NOEXEC ON; END
 GO
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
-PRINT CONCAT(N'Inicio en ', @@SERVERNAME, N'.', DB_NAME(), N' | CONFIRMAR=$(CONFIRMAR) | ', CONVERT(varchar(19), SYSDATETIME(), 120));
+DECLARE @confirmarTexto nvarchar(10) = (SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR');
+PRINT CONCAT(N'Inicio en ', @@SERVERNAME, N'.', DB_NAME(), N' | CONFIRMAR=', @confirmarTexto, N' | ', CONVERT(varchar(19), SYSDATETIME(), 120));
 GO
 -- ############################################################################
 -- FUENTE: PASE_QA_PROD/P01_infraestructura_integracion.sql
@@ -49,9 +49,12 @@ GO
  Idempotente: solo crea lo que falte. No carga datos.
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'seguimiento.AsignarProyectoFase', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
@@ -119,7 +122,16 @@ CREATE TABLE integracion.PauDirectorio(
 COMMIT;
 SELECT Tabla = name FROM sys.tables WHERE schema_id = SCHEMA_ID(N'integracion') ORDER BY name;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- FUENTE: 27_sp_sesion_directorio_PAU.sql
@@ -142,9 +154,12 @@ GO
    Requiere las tablas de integracion (01 + 11, o PASE_QA_PROD/P01).
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.PauDirectorio', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta la infraestructura de integracion: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 
 CREATE OR ALTER PROCEDURE integracion.paResolverSesionPau @parametro nvarchar(max)
@@ -203,6 +218,9 @@ BEGIN
  SELECT @respuesta;
 END;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 
 CREATE OR ALTER PROCEDURE integracion.paRegistrarDirectorioPau @parametro nvarchar(max)
 AS
@@ -253,12 +271,24 @@ BEGIN
  COMMIT;
 END;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 
 SELECT objeto = s.name + '.' + o.name, conCandadoAmbiente = CASE WHEN OBJECT_DEFINITION(o.object_id) LIKE N'%DB_NAME()%' THEN 1 ELSE 0 END
 FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id
 WHERE s.name = N'integracion' AND o.name IN (N'paResolverSesionPau', N'paRegistrarDirectorioPau');
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- FUENTE: 28_identidad_usuario_y_areas.sql
@@ -296,10 +326,13 @@ GO
    se leen (lo valida PASE_QA_PROD/P00).
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.PauDirectorio', N'U') IS NULL
    OR OBJECT_ID(N'seguimiento.AsignarProyectoFase', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta la infraestructura de integracion: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 
 CREATE OR ALTER VIEW integracion.vw_UsuarioSsipe
@@ -325,6 +358,9 @@ FROM (
     WHERE u.Activo = 1 AND u.VigenteHastaUtc > SYSUTCDATETIME()
 ) x
 WHERE x.rn = 1;
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 
 CREATE OR ALTER PROCEDURE integracion.paListarArea
@@ -360,11 +396,23 @@ BEGIN
     SELECT ISNULL(@result, '[]');
 END;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
 
 SELECT objeto = N'integracion.vw_UsuarioSsipe', filas = (SELECT COUNT(*) FROM integracion.vw_UsuarioSsipe);
 EXEC integracion.paListarArea;
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- FUENTE: 25_SP_paHomologarUsuariosPau_DBSSIPE2.sql
@@ -407,9 +455,12 @@ GO
    @confirmar = 0 (default) hace ROLLBACK y muestra el reporte de lo que HARIA.
 ================================================================================
 */
-IF DB_NAME() <> N'$(BASE_SSIPE)'
+IF DB_NAME() <> (SELECT Valor FROM #param WHERE Nombre = N'BASE_SSIPE')
    OR OBJECT_ID(N'integracion.PauDirectorio', N'U') IS NULL
 BEGIN RAISERROR(N'Base incorrecta o falta la infraestructura de integracion: ejecucion cancelada.', 16, 1); SET NOEXEC ON; END
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 CREATE OR ALTER PROCEDURE integracion.paHomologarUsuariosPau
     @usuariosJson   nvarchar(max),      -- JSON array, ver ejemplo al final
@@ -538,6 +589,12 @@ BEGIN
     ELSE BEGIN ROLLBACK; PRINT 'Simulacion: ROLLBACK. Revisar Estado por fila y volver a llamar con @confirmar = 1.'; END
 END
 GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
+GO
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 
 /* ---- Ejemplo de uso: pegar el JSON que devuelve la ultima consulta del script 24 ----
@@ -551,6 +608,9 @@ EXEC integracion.paHomologarUsuariosPau
     @idAreaPorDefecto = 6,   -- ver integracion.paListarArea para elegir un IdArea real y activo
     @confirmar = 0;
 */
+GO
+IF @@TRANCOUNT <> 1
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
 -- ############################################################################
 -- VERIFICACION PARTE 1
@@ -567,10 +627,13 @@ GO
 -- CIERRE: confirma o revierte todo lo anterior
 -- ############################################################################
 IF @@TRANCOUNT <> 1
-BEGIN RAISERROR(N'Transaccion exterior inconsistente: se revierte.', 16, 1); IF @@TRANCOUNT > 0 ROLLBACK; SET NOEXEC ON; END
+BEGIN RAISERROR(N'DETENIDO: hubo un error en un bloque anterior. Revise el PRIMER mensaje de error; al final se revierte todo.', 16, 1); SET NOEXEC ON; END
 GO
-IF $(CONFIRMAR) = 1 BEGIN COMMIT; PRINT N'COMMIT REALIZADO.'; END
-ELSE BEGIN ROLLBACK; PRINT N'SIMULACION: ROLLBACK de todo. Revisar la salida y repetir con CONFIRMAR "1" en una conexion nueva.'; END
+IF (SELECT Valor FROM #param WHERE Nombre = N'CONFIRMAR') = N'1' BEGIN COMMIT; PRINT N'COMMIT REALIZADO: cambios aplicados.'; END
+ELSE BEGIN ROLLBACK; PRINT N'SIMULACION OK: no se aplico nada. Cambiar CONFIRMAR a 1 y ejecutar de nuevo.'; END
 GO
 SET NOEXEC OFF;
+GO
+IF @@TRANCOUNT > 0
+BEGIN ROLLBACK; RAISERROR(N'EJECUCION DETENIDA: se revirtio todo. Revise el primer mensaje de error.', 16, 1); END
 GO
